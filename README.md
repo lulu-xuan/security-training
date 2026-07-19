@@ -41,6 +41,21 @@ cd app && python3 app.py
 
 访问: **http://localhost:5000**
 
+### Windows 获取方式
+
+```bash
+# 通过 GitHub 克隆到桌面
+cd %USERPROFILE%\Desktop
+git clone git@github.com:lulu-xuan/day2-user-login-platform.git
+
+# 安装依赖
+cd day2-user-login-platform
+pip install -r app\requirements.txt
+
+# 启动
+cd app && python app.py
+```
+
 ## 预置账号
 
 | 用户名 | 密码 | 角色 |

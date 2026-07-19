@@ -19,8 +19,7 @@ import secrets
 from datetime import timedelta
 
 from flask import (
-    Flask, render_template, request, redirect, session, url_for, flash,
-    jsonify, abort, after_this_request
+    Flask, render_template, request, redirect, session, url_for, jsonify
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_limiter import Limiter
@@ -77,8 +76,9 @@ USERS = {
     },
 }
 
-# 用户信息中不返回密码的字段列表 (V-02 修复)
-_SAFE_FIELDS = {"username", "role", "email", "phone", "balance"}
+# 用户信息中安全返回的字段列表（不含密码）(V-02 修复)
+# username 是字典外键，在 _safe_user_info 中单独添加
+_SAFE_FIELDS = {"role", "email", "phone", "balance"}
 
 
 def _safe_user_info(username):
@@ -86,13 +86,9 @@ def _safe_user_info(username):
     if username not in USERS:
         return None
     user = USERS[username]
-    return {
-        "username": username,
-        "role": user.get("role", ""),
-        "email": user.get("email", ""),
-        "phone": user.get("phone", ""),
-        "balance": user.get("balance", ""),
-    }
+    info = {field: user.get(field, "") for field in _SAFE_FIELDS}
+    info["username"] = username
+    return info
 
 
 def _validate_password_strength(password):
