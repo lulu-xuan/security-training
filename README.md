@@ -58,5 +58,5 @@ cd day3-app && rm -f data/users.db && python3 app_fixed.py
 ## 课程信息
 
 - **课程**: 网络安全漏洞修复实训
-- **仓库**: [github.com/lulu-xuan/day2-user-login-platform](https://github.com/lulu-xuan/day2-user-login-platform)
+- **仓库**: [github.com/lulu-xuan/security-training](https://github.com/lulu-xuan/security-training)
 - **结构**: 每天新增一个 `dayX-` 前缀目录，保留所有历史项目
