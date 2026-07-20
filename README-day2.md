@@ -7,7 +7,7 @@
 ## 项目结构
 
 ```
-day2-user-login-platform/
+security-training/
 ├── app/                               # Flask 应用主目录
 │   ├── app.py                        # 主应用入口（已修复）
 │   ├── requirements.txt              # Python 依赖清单
@@ -46,10 +46,10 @@ cd app && python3 app.py
 ```bash
 # 通过 GitHub 克隆到桌面
 cd %USERPROFILE%\Desktop
-git clone git@github.com:lulu-xuan/day2-user-login-platform.git
+git clone git@github.com:lulu-xuan/security-training.git
 
 # 安装依赖
-cd day2-user-login-platform
+cd security-training
 pip install -r app\requirements.txt
 
 # 启动
