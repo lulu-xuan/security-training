@@ -87,21 +87,31 @@ def init_db():
 
 
 # ============================================================
-# 漏洞路由: 首页 (含搜索功能)
+# 漏洞路由: 首页
 # ============================================================
 @app.route("/")
 def index():
     username = session.get("username")
-    results = None
-    keyword = ""
+    return render_template("index.html", username=username)
 
-    # 如果已登录且有搜索关键词，执行搜索（字符串拼接SQL）
-    if username and request.args.get("keyword"):
-        keyword = request.args.get("keyword", "")
+
+# ============================================================
+# ⚠️ 漏洞路由: 搜索 (支持 GET，字符串拼接 SQL)
+# ============================================================
+@app.route("/search")
+def search():
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    keyword = request.args.get("keyword", "")
+    results = None
+
+    if keyword:
         db = get_db()
 
+        # ⚠️ 漏洞: SELECT * —— 返回所有5列（id, username, password, email, phone）
         # ⚠️ 漏洞: 字符串拼接 SQL，无任何过滤
-        query = f"SELECT id, username, email, phone FROM users WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
+        query = f"SELECT * FROM users WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
 
         # 将 SQL 语句打印到控制台，方便观察注入效果
         print("=" * 55)
@@ -114,7 +124,7 @@ def index():
             print(f"  [SQL ERROR] {e}")
             results = []
 
-    return render_template("index.html", username=username,
+    return render_template("index.html", username=session["username"],
                            results=results, keyword=keyword)
 
 

