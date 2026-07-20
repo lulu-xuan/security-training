@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2 class="card-title">搜索用户（修复版）</h2>
+
+    {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="get" action="{{ url_for('search') }}" class="form">
+        <div class="form-group">
+            <label for="keyword">搜索关键词</label>
+            <div class="search-row">
+                <input type="text" id="keyword" name="keyword" class="form-input"
+                       placeholder="输入用户名或邮箱关键词..."
+                       value="{{ keyword or '' }}" maxlength="100" required
+                       pattern="[a-zA-Z0-9_一-龥 @.]+" title="只允许中英文、数字、下划线、空格和@符号">
+                <button type="submit" class="btn btn-primary">搜索</button>
+            </div>
+            <small class="form-hint">支持中文、英文、数字搜索</small>
+        </div>
+    </form>
+</div>
+
+<!-- ✅ 修复: 不再显示 SQL 调试信息 -->
+
+{% if results is not none %}
+<div class="card">
+    <h3>搜索 "<strong>{{ keyword }}</strong>" 的结果</h3>
+
+    {% if results|length > 0 %}
+    <div class="table-responsive">
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>用户名</th>
+                    <th>邮箱</th>
+                    <th>手机</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in results %}
+                <tr>
+                    <td>{{ row.id }}</td>
+                    <td>{{ row.username }}</td>
+                    <td>{{ row.email }}</td>
+                    <td>{{ row.phone }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="result-count">共 {{ results|length }} 条结果</p>
+    {% else %}
+    <p class="card-text">没有找到匹配的用户。</p>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">返回首页</a>
+</div>
+{% endblock %}
