@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>upload-labs 通关平台</title>
+    <title>文件上传漏洞分析平台</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <nav class="navbar">
-        <div class="navbar-brand">upload-labs 文件上传通关</div>
+        <div class="navbar-brand">文件上传漏洞分析</div>
         <div class="navbar-menu">
             {% if session.get('username') %}
                 <span class="navbar-welcome">欢迎，{{ session['username'] }}</span>

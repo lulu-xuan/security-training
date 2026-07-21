@@ -1,9 +1,9 @@
 """
-Day4 - upload-labs 文件上传漏洞通关平台
+Day4 - upload-labs 文件上传漏洞分析平台
 ========================================
 基于 Flask 实现了 upload-labs Pass-01 ~ Pass-18 的各类文件上传漏洞
 
-关卡列表:
+漏洞场景列表:
   Pass-01: 前端JS校验 → 禁用JS/直接发包绕过
   Pass-02: MIME类型校验 → 改Content-Type绕过
   Pass-03: 黑名单后缀 → .phtml 替代后缀绕过
@@ -62,7 +62,7 @@ def close_db(exception):
 def init_db():
     os.makedirs(os.path.join(BASE_DIR, "data"), exist_ok=True)
     os.makedirs(UPLOAD_BASE, exist_ok=True)
-    # 创建各关卡子目录
+    # 创建各场景子目录
     for i in [1, 2, 3, 6, 7, 8, 11, 12, 14, 18]:
         os.makedirs(os.path.join(UPLOAD_BASE, f"pass-{i:02d}"), exist_ok=True)
 
@@ -102,7 +102,7 @@ def login_required(f):
 # ============================================================
 
 def get_pass_dir(pass_num):
-    """获取关卡上传目录"""
+    """获取场景上传目录"""
     path = os.path.join(UPLOAD_BASE, f"pass-{pass_num:02d}")
     os.makedirs(path, exist_ok=True)
     return path
@@ -534,9 +534,9 @@ def upload_pass_18():
 # ============================================================
 if __name__ == "__main__":
     print("=" * 60)
-    print("  Day4 - upload-labs 文件上传漏洞通关平台")
+    print("  Day4 - upload-labs 文件上传漏洞分析平台")
     print("=" * 60)
-    print("  关卡列表:")
+    print("  漏洞场景列表:")
     print("    Pass-01: 前端JS校验")
     print("    Pass-02: MIME类型校验")
     print("    Pass-03: 黑名单后缀")

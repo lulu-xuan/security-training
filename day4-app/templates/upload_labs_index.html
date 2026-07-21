@@ -3,12 +3,12 @@
 
 {% if username %}
 <div class="card">
-    <h2 class="card-title">欢迎来到 upload-labs 通关平台</h2>
-    <p class="card-text">选择下方关卡，体验不同的文件上传漏洞与绕过技术。</p>
+    <h2 class="card-title">欢迎来到 文件上传漏洞分析平台</h2>
+    <p class="card-text">选择下方场景，体验不同的文件上传漏洞与绕过技术。</p>
 </div>
 
 <div class="card">
-    <h2 class="card-title">📋 关卡列表</h2>
+    <h2 class="card-title">📋 漏洞场景列表</h2>
     <div class="pass-grid">
         <a href="{{ url_for('upload_pass_01') }}" class="pass-card">
             <div class="pass-num">Pass-01</div>
@@ -65,9 +65,9 @@
 
 {% else %}
 <div class="card">
-    <h2 class="card-title">upload-labs 文件上传通关平台</h2>
-    <p class="card-text">本平台包含 10 道文件上传漏洞关卡，涵盖前端校验、MIME校验、黑名单、大小写、空格、点号、双写、%00截断、文件头检查、条件竞争等常见漏洞类型。</p>
-    <p class="card-text">请先登录或注册后开始闯关。</p>
+    <h2 class="card-title">文件上传漏洞分析平台</h2>
+    <p class="card-text">本平台包含 10 类文件上传漏洞场景，涵盖前端校验、MIME校验、黑名单、大小写、空格、点号、双写、%00截断、文件头检查、条件竞争等常见漏洞类型。</p>
+    <p class="card-text">请先登录或注册后开始测试。</p>
     <a href="{{ url_for('login') }}" class="btn btn-primary">前往登录</a>
 </div>
 {% endif %}
