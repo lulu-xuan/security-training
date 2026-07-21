@@ -1,0 +1,43 @@
+{% extends "upload_labs_fixed_base.html" %}
+{% block content %}
+<div class="card">
+    <h2 class="card-title">✅ 安全文件上传（漏洞已修复）</h2>
+    <p class="card-text">本版本已修复全部文件上传漏洞：</p>
+    <ul class="fix-list">
+        <li>✅ 白名单后缀：仅允许 <strong>jpg/png/gif/bmp/webp</strong></li>
+        <li>✅ 文件魔数校验：检查文件真实类型</li>
+        <li>✅ 文件名规范化：去空格、去点号、路径穿越防御</li>
+        <li>✅ 随机重命名：防止文件覆盖</li>
+        <li>✅ 先检查后保存：防止条件竞争</li>
+    </ul>
+</div>
+
+<div class="card">
+    <h2 class="card-title">📤 上传文件</h2>
+    {% if msg %}
+    <div class="alert {% if file_url %}alert-success{% else %}alert-error{% endif %}">{{ msg }}</div>
+    {% endif %}
+    {% if file_url %}
+    <div class="upload-success">
+        <h3>✅ 上传成功</h3>
+        <div class="preview-container">
+            <img src="{{ file_url }}" class="upload-preview"
+                 onerror="this.style.display='none'">
+        </div>
+        <p class="file-url"><a href="{{ file_url }}" target="_blank">{{ file_url }}</a></p>
+    </div>
+    {% endif %}
+    <form method="post" action="{{ url_for('upload_fixed') }}" enctype="multipart/form-data" class="form">
+        <div class="form-group">
+            <label>选择图片（JPG/PNG/GIF/BMP）</label>
+            <input type="file" name="file" class="form-input-file" required>
+        </div>
+        <button type="submit" class="btn btn-primary">安全上传</button>
+    </form>
+</div>
+
+<div class="card">
+    <p class="card-text">💡 尝试上传 .php、.html、.exe 等文件会被拒绝</p>
+    <a href="{{ url_for('upload_fixed') }}" class="btn btn-secondary">返回上传页</a>
+</div>
+{% endblock %}

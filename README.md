@@ -10,6 +10,7 @@
 |:---:|------|------|:----:|
 | Day2 | 用户登录平台漏洞修复（11项安全漏洞） | [`app/`](./app/) · [`report/`](./report/) | ✅ 已完成 |
 | Day3 | SQL注入漏洞分析与修复 | [`day3-app/`](./day3-app/) · [`day3-report/`](./day3-report/) | ✅ 已完成 |
+| **Day4** | **文件上传漏洞分析与修复** | **[`day4-app/`](./day4-app/) · [`day4-report/`](./day4-report/)** | **✅ 已完成** |
 
 ---
 
@@ -21,14 +22,13 @@
 - 报告: [`report/vulnerability_fix_report.md`](./report/vulnerability_fix_report.md)
 - [完整说明 →](./README-day2.md)
 
-## Day3 - SQL注入漏洞分析与修复
+## Day4 - 文件上传漏洞分析与修复
 
-**主题**: 引入SQL注入漏洞（f-string拼接）→ POC测试 → 参数化查询修复
+**主题**: 实现 upload-labs 10关闯关 + 文件上传漏洞系统修复（白名单+魔数+重命名）
 
-- 漏洞版: [`day3-app/app.py`](./day3-app/app.py)
-- 修复版: [`day3-app/app_fixed.py`](./day3-app/app_fixed.py)
-- 报告: [`day3-report/sql_injection_report.md`](./day3-report/sql_injection_report.md)
-- [完整说明 →](./README-day3.md)
+- 漏洞版: [`day4-app/app_upload_labs.py`](./day4-app/app_upload_labs.py) （10关闯关）
+- 修复版: [`day4-app/app_fixed.py`](./day4-app/app_fixed.py) （6项安全加固）
+- 报告: [`day4-report/upload_vulnerability_report.md`](./day4-report/upload_vulnerability_report.md)
 
 ---
 
@@ -46,14 +46,20 @@ cd day3-app && rm -f data/users.db && python3 app.py
 
 # Day3 - 启动修复版（参数化查询）
 cd day3-app && rm -f data/users.db && python3 app_fixed.py
+
+# Day4 - 启动漏洞版（upload-labs 10关闯关）— 端口5000
+cd day4-app && rm -rf static/uploads && python3 app_upload_labs.py
+
+# Day4 - 启动修复版（安全上传）— 端口5001
+cd day4-app && rm -rf static/uploads && python3 app_fixed.py
 ```
 
 ## 预置账号
 
-| 用户名 | 密码 | Day2 | Day3 |
-|--------|------|:----:|:----:|
-| admin | admin123 | ✅ | ✅ |
-| alice | alice2025 | ✅ | ✅ |
+| 用户名 | 密码 | Day2 | Day3 | Day4 |
+|--------|------|:----:|:----:|:----:|
+| admin | admin123 | ✅ | ✅ | ✅ |
+| alice | alice2025 | ✅ | ✅ | ✅ |
 
 ## 课程信息
 
