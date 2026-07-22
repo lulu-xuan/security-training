@@ -1,0 +1,83 @@
+{% extends "upload_labs_base.html" %}
+{% block content %}
+
+<div class="card">
+    <h2 class="card-title">🔓 Pass-{{ "%02d" % pass_num }}: {{ pass_title }}</h2>
+
+    <div class="pass-info">
+        <div class="pass-info-def">
+            <strong>🛡️ 防御方式：</strong>{{ desc }}
+        </div>
+        <div class="pass-info-atk">
+            <strong>⚡ 绕过方法：</strong>{{ bypass }}
+        </div>
+    </div>
+
+    {% if check_js %}
+    <!-- ⚠️ Pass-01: 前端JS校验 — 禁用JS或Burp直接发包即可绕过 -->
+    <script>
+        function checkFile() {
+            var file = document.getElementById('file').files[0];
+            if (!file) { alert('请选择一个文件'); return false; }
+            var ext = file.name.split('.').pop().toLowerCase();
+            var allowed = ['jpg', 'jpeg', 'png', 'gif'];
+            if (allowed.indexOf(ext) === -1) {
+                alert('只能上传 JPG/PNG/GIF 格式的图片！');
+                return false;
+            }
+            return true;
+        }
+    </script>
+    {% endif %}
+
+    <form method="post" action="{% if pass_num == 12 %}{{ url_for('upload_pass_12') }}{% else %}{{ url_for('upload_pass_%02d' % pass_num) }}{% endif %}"
+          enctype="multipart/form-data" class="form"
+          {% if check_js %}onsubmit="return checkFile()"{% endif %}>
+
+        {% if pass_num == 12 %}
+        <div class="form-group">
+            <label for="save_path">保存路径 (save_path)</label>
+            <input type="text" id="save_path" name="save_path" class="form-input"
+                   placeholder="留空使用默认路径，或输入 shell.php%00 尝试截断" value="">
+            <small class="form-hint">在 URL 中添加 ?save_path=目标路径 可实现 %00 截断</small>
+        </div>
+        {% endif %}
+
+        <div class="form-group">
+            <label for="file">选择文件</label>
+            <input type="file" id="file" name="file" class="form-input-file" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary">上传</button>
+    </form>
+
+    {% if msg %}
+    <div class="alert {% if file_url %}alert-success{% else %}alert-error{% endif %}">
+        {{ msg }}
+    </div>
+    {% endif %}
+
+    {% if file_url %}
+    <div class="upload-success">
+        <h3>✅ 上传成功！</h3>
+        <div class="preview-container">
+            <img src="{{ file_url }}" alt="上传的文件" class="upload-preview"
+                 onerror="this.style.display='none'">
+        </div>
+        {% if file_url.endswith('.php') or file_url.endswith('.phtml') or file_url.endswith('.php5') or file_url.endswith('.Php') or file_url.endswith('.py') %}
+        <div class="alert alert-success">
+            🎯 <strong>一句话木马已上传！</strong><br>
+            文件地址：<a href="{{ file_url }}" target="_blank">{{ file_url }}</a><br>
+            密码：cmd
+        </div>
+        {% endif %}
+        <p class="file-url"><strong>文件链接：</strong><a href="{{ file_url }}" target="_blank">{{ file_url }}</a></p>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">返回场景列表</a>
+</div>
+
+{% endblock %}

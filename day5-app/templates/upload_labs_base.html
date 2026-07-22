@@ -3,17 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>用户管理系统 - Day4</title>
+    <title>文件上传漏洞分析平台</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <nav class="navbar">
-        <div class="navbar-brand">用户管理系统</div>
+        <div class="navbar-brand">文件上传漏洞分析</div>
         <div class="navbar-menu">
             {% if session.get('username') %}
-                <a href="{{ url_for('index') }}" class="navbar-link">首页</a>
-                <a href="{{ url_for('upload') }}" class="navbar-link">上传头像</a>
-                <a href="{{ url_for('profile') }}" class="navbar-link">个人中心</a>
                 <span class="navbar-welcome">欢迎，{{ session['username'] }}</span>
                 <a href="{{ url_for('logout') }}" class="navbar-link">退出</a>
             {% else %}

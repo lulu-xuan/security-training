@@ -11,6 +11,7 @@
 | Day2 | 用户登录平台漏洞修复（11项安全漏洞） | [`app/`](./app/) · [`report/`](./report/) | ✅ 已完成 |
 | Day3 | SQL注入漏洞分析与修复 | [`day3-app/`](./day3-app/) · [`day3-report/`](./day3-report/) | ✅ 已完成 |
 | **Day4** | **文件上传漏洞分析与修复** | **[`day4-app/`](./day4-app/) · [`day4-report/`](./day4-report/)** | **✅ 已完成** |
+| **Day5** | **业务逻辑漏洞（越权+充值欺诈）** | **[`day5-app/`](./day5-app/) · [`day5-report/`](./day5-report/)** | **✅ 已完成** |
 
 ---
 
@@ -29,6 +30,16 @@
 - 漏洞版: [`day4-app/app_upload_labs.py`](./day4-app/app_upload_labs.py) （10关闯关）
 - 修复版: [`day4-app/app_fixed.py`](./day4-app/app_fixed.py) （6项安全加固）
 - 报告: [`day4-report/upload_vulnerability_report.md`](./day4-report/upload_vulnerability_report.md)
+
+---
+
+## Day5 - 业务逻辑漏洞（越权与充值欺诈）
+
+**主题**: IDOR越权 + 负数充值 + 垂直越权 → session加固 + 参数校验 + 归属验证
+
+- 漏洞版: [`day5-app/app.py`](./day5-app/app.py)
+- 修复版: [`day5-app/app_fixed.py`](./day5-app/app_fixed.py)
+- 报告: [`day5-report/business_logic_vulnerability_report.md`](./day5-report/business_logic_vulnerability_report.md)
 
 ---
 
