@@ -17,6 +17,7 @@ Day6 - 用户登录管理平台 (路径遍历+业务逻辑漏洞版本)
 """
 
 import os
+import re
 import sqlite3
 from datetime import timedelta
 
@@ -241,18 +242,28 @@ def upload():
 
 
 # ============================================================
-# ⚠️ 漏洞路由: 动态页面加载 (路径遍历 — 无../过滤)
+# ✅ 修复路由: 动态页面加载 (路径遍历已修复)
 # ============================================================
 @app.route("/page")
 def dynamic_page():
-    """动态页面加载 — 存在路径遍历漏洞：不检查 ../ """
+    """动态页面加载 — 已修复路径遍历漏洞"""
     name = request.args.get("name", "")
 
-    # ⚠️ 漏洞: 直接拼接用户输入的name到路径中
-    # ⚠️ 漏洞: 不使用os.path.abspath或realpath规范化路径
-    # ⚠️ 漏洞: 不检查路径中是否包含 ../
-    page_path = os.path.join(PAGES_DIR, name)
+    # ✅ F-01: 拒绝包含 ../ 的路径遍历攻击
+    if ".." in name or name.startswith("/") or "\\" in name:
+        page_content = "<p>页面不存在</p>"
+        return render_template("index.html",
+                               username=session.get("username"),
+                               page_content=page_content)
 
+    # ✅ F-02: 只允许字母、数字、下划线、连字符（页面文件名白名单）
+    if not re.match(r'^[a-zA-Z0-9_-]+$', name):
+        page_content = "<p>页面不存在</p>"
+        return render_template("index.html",
+                               username=session.get("username"),
+                               page_content=page_content)
+
+    page_path = os.path.join(PAGES_DIR, name)
     page_content = None
 
     if os.path.exists(page_path) and os.path.isfile(page_path):
@@ -262,7 +273,6 @@ def dynamic_page():
         except:
             page_content = "<p>读取文件失败</p>"
     else:
-        # 尝试加 .html 后缀
         page_path_html = page_path + ".html"
         if os.path.exists(page_path_html) and os.path.isfile(page_path_html):
             try:

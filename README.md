@@ -54,8 +54,9 @@
 **主题**: 路径遍历读取任意文件 + 动态页面加载 → 输入校验 + basename限制
 
 - 漏洞版: [`day6-app/app.py`](./day6-app/app.py)
-- 报告: [`day6-report/`](./day6-report/)
+- 报告: [`day6-report/path_traversal_report.md`](./day6-report/path_traversal_report.md)
 
+---
 ---
 
 ## 快速启动
