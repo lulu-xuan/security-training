@@ -25,9 +25,12 @@
         </div>
     </div>
 
-    <!-- 页面内容区域（动态加载） -->
+    <!-- 页面内容区域（动态加载/文件包含） -->
     {% if page_content %}
     <div class="card page-content-card">
+        {% if file_source %}
+        <div class="file-source-badge">{{ file_source }}</div>
+        {% endif %}
         {{ page_content | safe }}
     </div>
     {% endif %}

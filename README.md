@@ -49,15 +49,13 @@
 
 ---
 
-## Day6 - 路径遍历 + 动态页面加载漏洞
+## Day6 - 文件包含漏洞（5种攻击场景）
 
-**主题**: 路径遍历读取任意文件 + 动态页面加载 → 输入校验 + basename限制
+**主题**: 基本文件包含 + 路径遍历 + RFI + data://封装协议 + 日志注入 → 5项安全加固
 
 - 漏洞版: [`day6-app/app.py`](./day6-app/app.py)
 - 修复版: [`day6-app/app_fixed.py`](./day6-app/app_fixed.py)
 - 报告: [`day6-report/path_traversal_report.md`](./day6-report/path_traversal_report.md)
-
----
 ---
 
 ## 快速启动
@@ -79,7 +77,13 @@ cd day4-app && rm -rf static/uploads && python3 app_fixed.py
 
 # Day5 - 漏洞版 / 修复版
 cd day5-app && rm -f data/users.db && python3 app.py
+# Day6 - 漏洞版（5种文件包含攻击场景）
+cd day6-app && rm -rf data/ logs/ && python3 app.py
+cd day6-app && rm -rf data/ logs/ && python3 app_fixed.py
 cd day5-app && rm -f data/users.db && python3 app_fixed.py
+# Day6 - 漏洞版（5种文件包含攻击场景）
+cd day6-app && rm -rf data/ logs/ && python3 app.py
+cd day6-app && rm -rf data/ logs/ && python3 app_fixed.py
 # Day6 - 漏洞版（路径遍历演示）
 cd day6-app && rm -f data/users.db && python3 app.py
 

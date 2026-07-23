@@ -1,62 +1,45 @@
 """
-Day6 - 用户登录管理平台 (路径遍历+业务逻辑漏洞版本)
-=====================================================
-⚠️ 警告: 此版本故意包含安全漏洞，仅供安全教学使用！
+Day6 - 用户登录管理平台 (文件包含漏洞完整版)
+==============================================
+⚠️ 警告: 此版本故意包含多种文件包含漏洞，仅供安全教学使用！
 
-漏洞汇总:
-  漏洞1: 字符串拼接 SQL (登录/注册/搜索/充值)
-  漏洞2: 无输入过滤
-  漏洞3: 搜索结果直接回显
-  漏洞4: 无文件类型检查 (任意文件可上传)
-  漏洞5: 使用原始文件名 (路径遍历/覆盖风险)
-  漏洞6: 文件保存到可直接访问的目录
-  漏洞7: 水平越权 (IDOR) — 修改user_id可查看任意用户资料
-  漏洞8: 垂直越权 — 无权校验，任意用户可操作任意账户
-  漏洞9: 充值金额可为负数 — 可恶意提现
-  漏洞10: 路径遍历 — /page?name= 未过滤../，可读取任意文件
+漏洞场景:
+  1 · 基本文件包含 — os.path.join 拼接读取 pages/ 下文件
+  2 · 路径遍历 — 使用 ../ 突破目录限制读取任意文件
+  3 · 远程文件包含(RFI) — name 参数支持 http:// 远程地址
+  4 · 封装协议(data://) — name 参数支持 data://base64 编码
+  5 · 日志注入 — User-Agent 写入日志后包含日志文件
+  6 · 综合利用 — 多种技术组合突破安全检查
 """
 
 import os
 import re
+import base64
 import sqlite3
+import urllib.request
 from datetime import timedelta
+from functools import wraps
+from urllib.parse import unquote
 
 from flask import (
-    Flask, render_template, request, redirect, session, url_for, g,
-    send_from_directory
+    Flask, render_template, request, redirect, session, url_for, g
 )
-from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
-# Secret Key
-_SECRET_KEY = os.environ.get("SECRET_KEY", "dev-key-day4-vuln")
-app.secret_key = _SECRET_KEY
-
-# Session 配置
+app.secret_key = "dev-key-day6-vuln"
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
-
-# ⚠️ 漏洞: 设置 MAX_CONTENT_LENGTH = 16MB，但不上传时的文件类型检查
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
-# Debug 由环境变量控制
-DEBUG = os.environ.get("DEBUG", "false").lower() in ("true", "1", "yes")
-
-# 数据库路径
+DEBUG = False
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.path.join(BASE_DIR, "data", "users.db")
-
-# ⚠️ 漏洞: 上传目录设为 static/uploads/，文件可直接通过 URL 访问
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
-
-# ⚠️ 漏洞: pages/ 目录用于动态页面加载
 PAGES_DIR = os.path.join(BASE_DIR, "pages")
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+ACCESS_LOG = os.path.join(LOG_DIR, "access.log")
 
-
-# ============================================================
-# 数据库操作
-# ============================================================
 
 def get_db():
     if "db" not in g:
@@ -64,211 +47,178 @@ def get_db():
         g.db.row_factory = sqlite3.Row
     return g.db
 
-
 @app.teardown_appcontext
 def close_db(exception):
     db = g.pop("db", None)
-    if db is not None:
-        db.close()
-
+    if db is not None: db.close()
 
 def init_db():
     os.makedirs(os.path.join(BASE_DIR, "data"), exist_ok=True)
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
+    os.makedirs(LOG_DIR, exist_ok=True)
     db = sqlite3.connect(DATABASE)
-    cursor = db.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            email TEXT DEFAULT '',
-            phone TEXT DEFAULT '',
-            balance INTEGER DEFAULT 0
-        )
-    """)
-
-    cursor.execute("""
-        INSERT OR IGNORE INTO users (username, password, email, phone)
-        VALUES ('admin', 'admin123', 'admin@example.com', '13800138000')
-    """)
-    cursor.execute("""
-        INSERT OR IGNORE INTO users (username, password, email, phone)
-        VALUES ('alice', 'alice2025', 'alice@example.com', '13900139001')
-    """)
-
-    db.commit()
-    db.close()
+    db.execute("""CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL, email TEXT DEFAULT '', phone TEXT DEFAULT '',
+        balance INTEGER DEFAULT 0)""")
+    db.execute("""INSERT OR IGNORE INTO users (username,password,email,phone,balance)
+        VALUES ('admin','admin123','admin@example.com','13800138000',0)""")
+    db.execute("""INSERT OR IGNORE INTO users (username,password,email,phone,balance)
+        VALUES ('alice','alice2025','alice@example.com','13900139001',0)""")
+    db.commit(); db.close()
 
 
-# ============================================================
-# 首页
-# ============================================================
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "username" not in session: return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ⚠️ 漏洞: 日志注入 — 每次请求记录 User-Agent 到日志文件
+@app.before_request
+def log_user_agent():
+    """记录用户请求头到日志文件（用于日志注入攻击）"""
+    try:
+        ua = request.headers.get("User-Agent", "Unknown")
+        ip = request.remote_addr or "0.0.0.0"
+        path = request.path
+        with open(ACCESS_LOG, "a", encoding="utf-8") as f:
+            f.write(f"{ip} - {path} - {ua}\n")
+    except:
+        pass
+
+
+# ========== 用户功能 ==========
 @app.route("/")
 def index():
-    username = session.get("username")
-    return render_template("index.html", username=username)
+    return render_template("index.html", username=session.get("username"))
 
-
-# ============================================================
-# 搜索
-# ============================================================
-@app.route("/search")
-def search():
-    if "username" not in session:
-        return redirect(url_for("login"))
-
-    keyword = request.args.get("keyword", "")
-    results = None
-
-    if keyword:
-        db = get_db()
-        query = f"SELECT * FROM users WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
-        print("=" * 55)
-        print(f"  [SQL] {query}")
-        print("=" * 55)
-        try:
-            results = db.execute(query).fetchall()
-        except sqlite3.OperationalError as e:
-            print(f"  [SQL ERROR] {e}")
-            results = []
-
-    return render_template("index.html", username=session["username"],
-                           results=results, keyword=keyword)
-
-
-# ============================================================
-# 登录
-# ============================================================
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    error = None
-    registered = request.args.get("registered")
-
+    error = None; registered = request.args.get("registered")
     if request.method == "POST":
-        username = request.form.get("username", "")
-        password = request.form.get("password", "")
-
+        u = request.form.get("username",""); p = request.form.get("password","")
         db = get_db()
-        query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
-
-        try:
-            result = db.execute(query).fetchone()
-        except sqlite3.OperationalError as e:
-            error = f"数据库错误: {e}"
-            return render_template("login.html", error=error)
-
-        if result:
-            session.permanent = True
-            session["username"] = result["username"]
-            info_query = f"SELECT id, username, email, phone FROM users WHERE username='{result['username']}'"
-            user_info = db.execute(info_query).fetchone()
-            return render_template("index.html", username=session["username"],
-                                   user=dict(user_info) if user_info else None)
-        else:
-            error = "用户名或密码错误"
-
+        r = db.execute(f"SELECT * FROM users WHERE username='{u}' AND password='{p}'").fetchone()
+        if r:
+            session.permanent = True; session["username"] = r["username"]
+            return redirect(url_for("index"))
+        else: error = "用户名或密码错误"
     return render_template("login.html", error=error, registered=registered)
 
-
-# ============================================================
-# 注册
-# ============================================================
 @app.route("/register", methods=["GET", "POST"])
 def register():
     error = None
-
     if request.method == "POST":
-        username = request.form.get("username", "")
-        password = request.form.get("password", "")
-        email = request.form.get("email", "")
-        phone = request.form.get("phone", "")
-
+        u=request.form.get("username",""); p=request.form.get("password","")
+        e=request.form.get("email",""); ph=request.form.get("phone","")
         db = get_db()
-        query = f"INSERT INTO users (username, password, email, phone) VALUES ('{username}', '{password}', '{email}', '{phone}')"
-
         try:
-            db.execute(query)
-            db.commit()
-            return redirect(url_for("login", registered="true"))
-        except sqlite3.OperationalError as e:
-            error = f"注册失败: {e}"
-        except sqlite3.IntegrityError:
-            error = "用户名已存在，请选择其他用户名"
-
+            db.execute(f"INSERT INTO users (username,password,email,phone) VALUES ('{u}','{p}','{e}','{ph}')")
+            db.commit(); return redirect(url_for("login", registered="true"))
+        except: error="注册失败"
     return render_template("register.html", error=error)
 
+@app.route("/search")
+def search():
+    if "username" not in session: return redirect(url_for("login"))
+    keyword = request.args.get("keyword",""); results = None
+    if keyword:
+        db = get_db()
+        query = f"SELECT * FROM users WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
+        try: results = db.execute(query).fetchall()
+        except: results = []
+    return render_template("index.html", username=session["username"], results=results, keyword=keyword)
 
-# ============================================================
-# ⚠️ 漏洞路由: 文件上传 (无文件类型检查，使用原始文件名)
-# ============================================================
-@app.route("/upload", methods=["GET", "POST"])
+@app.route("/upload", methods=["GET","POST"])
+@login_required
 def upload():
-    """文件上传 — 存在漏洞：无类型检查、原始文件名、直接可访问"""
-    if "username" not in session:
-        return redirect(url_for("login"))
-
-    error = None
-    uploaded_file_url = None
-    uploaded_filename = None
-
-    if request.method == "POST":
-        # ⚠️ 漏洞: 不检查是否有文件
-        file = request.files.get("file")
-
-        if file and file.filename:
-            # ⚠️ 漏洞: 使用用户提供的原始文件名（不重命名）
-            # ⚠️ 漏洞: 不检查文件后缀名
-            # ⚠️ 漏洞: 不检查 MIME 类型
-            # ⚠️ 漏洞: 不检查文件内容
-            filename = file.filename
-
-            # 保存文件到 static/uploads/ 目录
-            save_path = os.path.join(UPLOAD_FOLDER, filename)
-            file.save(save_path)
-
-            # 返回文件访问 URL
-            uploaded_file_url = url_for("static", filename=f"uploads/{filename}")
-            uploaded_filename = filename
-        else:
-            error = "请选择一个文件"
-
-    return render_template("upload.html",
-                           error=error,
-                           uploaded_file_url=uploaded_file_url,
-                           uploaded_filename=uploaded_filename)
-
+    e=None; url=None; fn=None
+    if request.method=="POST":
+        f=request.files.get("file")
+        if f and f.filename:
+            fn=f.filename
+            f.save(os.path.join(UPLOAD_FOLDER,fn))
+            url=url_for("static", filename=f"uploads/{fn}")
+        else: e="请选择一个文件"
+    return render_template("upload.html", error=e, uploaded_file_url=url, uploaded_filename=fn)
 
 # ============================================================
-# ✅ 修复路由: 动态页面加载 (路径遍历已修复)
+# ⚠️ 核心漏洞路由: 文件包含 (支持6种攻击场景)
 # ============================================================
 @app.route("/page")
 def dynamic_page():
-    """动态页面加载 — 存在路径遍历漏洞：完全不校验用户输入"""
+    """文件包含漏洞入口 — 支持基本包含/路径遍历/RFI/data封装/日志包含"""
     name = request.args.get("name", "")
-
-    # ⚠️ 漏洞: 直接拼接用户输入的name到路径中
-    # ⚠️ 漏洞: 不检查路径中是否包含 ../
-    # ⚠️ 漏洞: 不使用os.path.abspath或realpath规范化路径
-    page_path = os.path.join(PAGES_DIR, name)
-
     page_content = None
+    source = ""
+
+    # ================================================================
+    # 场景3: 远程文件包含 (RFI) — name 以 http 开头
+    # ================================================================
+    if name.startswith("http://") or name.startswith("https://"):
+        try:
+            # ⚠️ 漏洞: 从远程 URL 获取内容，可能加载恶意代码
+            # ⚠️ 漏洞: 不验证远程服务器是否可信
+            # ⚠️ 漏洞: 不检查返回内容类型
+            resp = urllib.request.urlopen(name, timeout=5)
+            page_content = resp.read().decode("utf-8", errors="replace")
+            source = "🌐 远程文件包含 (RFI)"
+            return render_template("index.html",
+                                   username=session.get("username"),
+                                   page_content=page_content,
+                                   file_source=source)
+        except Exception as err:
+            page_content = f"<p>远程文件读取失败: {str(err)}</p>"
+            return render_template("index.html",
+                                   username=session.get("username"),
+                                   page_content=page_content,
+                                   file_source=source)
+
+    # ================================================================
+    # 场景4: 封装协议 data:// — base64 解码内容
+    # ================================================================
+    if name.startswith("data://"):
+        try:
+            # ⚠️ 漏洞: data://text/plain;base64,<base64编码内容>
+            # 执行解码后在页面中渲染，可被用于构造任意内容
+            data_part = name[len("data://"):]
+            if ";base64," in data_part:
+                _, b64_data = data_part.split(";base64,", 1)
+                decoded = base64.b64decode(b64_data).decode("utf-8", errors="replace")
+                page_content = f"<pre>{decoded}</pre>"
+                source = "📦 封装协议 data:// (base64解码)"
+            else:
+                page_content = f"<p>data 内容: {data_part[:200]}</p>"
+                source = "📦 封装协议 data://"
+            return render_template("index.html",
+                                   username=session.get("username"),
+                                   page_content=page_content,
+                                   file_source=source)
+        except Exception as err:
+            page_content = f"<p>data 解码失败: {str(err)}</p>"
+
+    # ⚠️ 漏洞: 直接拼接用户输入的 name 到路径中
+    # ⚠️ 漏洞: 不检查路径中是否包含 ../
+    # ⚠️ 漏洞: 不使用 os.path.abspath/os.path.realpath 规范化
+    page_path = os.path.join(PAGES_DIR, name)
 
     if os.path.exists(page_path) and os.path.isfile(page_path):
         try:
-            with open(page_path, "r", encoding="utf-8") as f:
+            with open(page_path, "r", encoding="utf-8", errors="replace") as f:
                 page_content = f.read()
+            source = "📄 基本文件包含" if "../" not in name else "🔀 路径遍历"
         except:
             page_content = "<p>读取文件失败</p>"
     else:
-        # 尝试加 .html 后缀
         page_path_html = page_path + ".html"
         if os.path.exists(page_path_html) and os.path.isfile(page_path_html):
             try:
-                with open(page_path_html, "r", encoding="utf-8") as f:
+                with open(page_path_html, "r", encoding="utf-8", errors="replace") as f:
                     page_content = f.read()
+                source = "📄 基本文件包含 (.html自动补全)"
             except:
                 page_content = "<p>读取文件失败</p>"
         else:
@@ -276,92 +226,28 @@ def dynamic_page():
 
     return render_template("index.html",
                            username=session.get("username"),
-                           page_content=page_content)
+                           page_content=page_content,
+                           file_source=source)
 
 
-# ============================================================
-# ⚠️ 漏洞路由: 个人中心 (无权限校验，user_id从URL参数获取)
-# ============================================================
-@app.route("/profile")
-def profile():
-    """个人中心 — 存在漏洞：不验证当前用户是否有权查看他人资料"""
-    username = session.get("username")
-
-    # ⚠️ 漏洞: user_id 直接从 URL 参数获取，不从 session 获取
-    # ⚠️ 漏洞: 不验证当前登录用户与查询的 user_id 是否匹配
-    user_id = request.args.get("user_id", type=int)
-
-    user_info = None
-    error = None
-
-    if user_id:
-        db = get_db()
-        # ⚠️ 漏洞: 字符串拼接 SQL
-        query = f"SELECT id, username, email, phone, balance FROM users WHERE id={user_id}"
-        try:
-            user_info = db.execute(query).fetchone()
-            if user_info:
-                user_info = dict(user_info)
-            else:
-                error = "用户不存在"
-        except sqlite3.OperationalError as e:
-            error = f"查询失败: {e}"
-
-    return render_template("profile.html", username=username,
-                           user_info=user_info, error=error, user_id=user_id)
-
-
-# ============================================================
-# ⚠️ 漏洞路由: 充值 (无权限校验，amount可为负数)
-# ============================================================
-@app.route("/recharge", methods=["POST"])
-def recharge():
-    """充值 — 存在漏洞：不验证身份、amount可为负数"""
-    # ⚠️ 漏洞: user_id 从表单参数获取
-    user_id = request.form.get("user_id", type=int)
-    # ⚠️ 漏洞: amount 不做正负校验，负数就是"提现"
-    amount = request.form.get("amount", type=int, default=0)
-
-    if user_id and amount:
-        db = get_db()
-        # ⚠️ 漏洞: 字符串拼接 SQL
-        query = f"UPDATE users SET balance = balance + ({amount}) WHERE id={user_id}"
-        try:
-            db.execute(query)
-            db.commit()
-        except sqlite3.OperationalError as e:
-            pass
-
-    # 充值后重定向回个人中心
-    return redirect(url_for("profile", user_id=user_id))
-
-
-# ============================================================
-# 登出
-# ============================================================
+# ========== 登出 ==========
 @app.route("/logout")
 def logout():
-    session.pop("username", None)
-    return redirect(url_for("index"))
+    session.pop("username", None); return redirect(url_for("index"))
 
 
-# ============================================================
-# 启动
-# ============================================================
 if __name__ == "__main__":
-    print("=" * 55)
-    print("  Day6 - 用户登录管理平台 (路径遍历+业务逻辑漏洞版)")
-    print("=" * 55)
-    print(f"  ⚠️  路径遍历: /page?name= 未过滤../")
-    print(f"  ⚠️  水平越权(IDOR): 可查看任意用户资料")
-    print(f"  ⚠️  充值负数: 可恶意提现")
-    print(f"  ⚠️  垂直越权: 无权限校验")
-    print(f"  ⚠️  上传目录: static/uploads/")
-    print(f"  Debug模式: {'开启' if DEBUG else '关闭'}")
-    print("=" * 55)
+    print("=" * 60)
+    print("  Day6 - 文件包含漏洞通关平台 (6种攻击场景)")
+    print("=" * 60)
+    print("  1 · 基本文件包含:     /page?name=help")
+    print("  2 · 路径遍历:        /page?name=../app.py")
+    print("  3 · 远程文件包含(RFI): /page?name=http://...")
+    print("  4 · 封装协议(data):   /page?name=data://text/plain;base64,...")
+    print("  5 · 日志注入:        User-Agent 写入 → /page?name=../logs/access.log")
+    print("  6 · 综合利用:        多种技术组合")
+    print("=" * 60)
     print(f"  访问地址: http://0.0.0.0:5000")
-    print("=" * 55)
-
-    with app.app_context():
-        init_db()
+    print("=" * 60)
+    with app.app_context(): init_db()
     app.run(debug=DEBUG, host="0.0.0.0", port=5000)
