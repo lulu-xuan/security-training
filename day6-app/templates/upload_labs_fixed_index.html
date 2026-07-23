@@ -1,0 +1,27 @@
+{% extends "upload_labs_fixed_base.html" %}
+{% block content %}
+{% if username %}
+<div class="card">
+    <h2 class="card-title">欢迎，{{ username }}！</h2>
+    <p class="card-text">上传头像请点击下方按钮</p>
+    <a href="{{ url_for('upload_fixed') }}" class="btn btn-primary">📤 上传文件</a>
+    <a href="{{ url_for('logout') }}" class="btn btn-secondary" style="margin-left:10px">退出</a>
+</div>
+<div class="card" style="background:#e8f5e9;border-left:4px solid #4caf50">
+    <h3 style="color:#2e7d32">🛡️ 安全状态</h3>
+    <ul class="fix-list">
+        <li>✅ 仅允许图片类型（jpg/png/gif/bmp/webp）</li>
+        <li>✅ 文件魔数校验（读取文件真实头）</li>
+        <li>✅ 文件名清洗（去空格/去点号/防路径穿越）</li>
+        <li>✅ 随机重命名（防覆盖攻击）</li>
+        <li>✅ 先检查后保存（防条件竞争）</li>
+    </ul>
+</div>
+{% else %}
+<div class="card">
+    <h2 class="card-title">请先登录</h2>
+    <p class="card-text">登录后体验安全文件上传功能</p>
+    <a href="{{ url_for('login') }}" class="btn btn-primary">前往登录</a>
+</div>
+{% endif %}
+{% endblock %}

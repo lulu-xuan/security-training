@@ -1,0 +1,27 @@
+{% extends "upload_labs_base.html" %}
+{% block content %}
+<div class="card">
+    <h2 class="card-title">用户注册</h2>
+    {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+    <form method="post" action="{{ url_for('register') }}" class="form">
+        <div class="form-group">
+            <label for="username">用户名</label>
+            <input type="text" id="username" name="username" class="form-input" placeholder="请输入用户名" required>
+        </div>
+        <div class="form-group">
+            <label for="password">密码</label>
+            <input type="password" id="password" name="password" class="form-input" placeholder="请输入密码" required>
+        </div>
+        <div class="form-group">
+            <label for="email">邮箱</label>
+            <input type="email" id="email" name="email" class="form-input" placeholder="选填">
+        </div>
+        <div class="form-group">
+            <label for="phone">手机</label>
+            <input type="text" id="phone" name="phone" class="form-input" placeholder="选填">
+        </div>
+        <button type="submit" class="btn btn-primary">注册</button>
+    </form>
+    <div class="form-footer"><p>已有账号？<a href="{{ url_for('login') }}">立即登录</a></p></div>
+</div>
+{% endblock %}

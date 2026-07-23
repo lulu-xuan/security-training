@@ -12,6 +12,7 @@
 | Day3 | SQL注入漏洞分析与修复 | [`day3-app/`](./day3-app/) · [`day3-report/`](./day3-report/) | ✅ 已完成 |
 | Day4 | 文件上传漏洞分析与修复 | [`day4-app/`](./day4-app/) · [`day4-report/`](./day4-report/) | ✅ 已完成 |
 | Day5 | 业务逻辑漏洞（越权与充值欺诈） | [`day5-app/`](./day5-app/) · [`day5-report/`](./day5-report/) | ✅ 已完成 |
+| Day6 | 路径遍历 + 动态页面加载漏洞 | [`day6-app/`](./day6-app/) · [`day6-report/`](./day6-report/) | ✅ 已完成 |
 
 ---
 
@@ -48,6 +49,15 @@
 
 ---
 
+## Day6 - 路径遍历 + 动态页面加载漏洞
+
+**主题**: 路径遍历读取任意文件 + 动态页面加载 → 输入校验 + basename限制
+
+- 漏洞版: [`day6-app/app.py`](./day6-app/app.py)
+- 报告: [`day6-report/`](./day6-report/)
+
+---
+
 ## 快速启动
 
 ```bash
@@ -68,14 +78,16 @@ cd day4-app && rm -rf static/uploads && python3 app_fixed.py
 # Day5 - 漏洞版 / 修复版
 cd day5-app && rm -f data/users.db && python3 app.py
 cd day5-app && rm -f data/users.db && python3 app_fixed.py
-```
+# Day6 - 漏洞版（路径遍历演示）
+cd day6-app && rm -f data/users.db && python3 app.py
 
+```
 ## 预置账号
 
-| 用户名 | 密码 | Day2 | Day3 | Day4 | Day5 |
-|--------|------|:----:|:----:|:----:|:----:|
-| admin | admin123 | ✅ | ✅ | ✅ | ✅ |
-| alice | alice2025 | ✅ | ✅ | ✅ | ✅ |
+| 用户名 | 密码 | Day2 | Day3 | Day4 | Day5 | Day6 |
+|--------|------|:----:|:----:|:----:|:----:|:----:|
+| admin | admin123 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| alice | alice2025 | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
 

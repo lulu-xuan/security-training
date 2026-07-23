@@ -1,0 +1,30 @@
+{% extends "base_fixed.html" %}
+{% block content %}
+<div class="card">
+    <h2 class="card-title">个人中心（已修复版）</h2>
+    {% if user_info %}
+    <div class="user-info">
+        <h3>用户资料</h3>
+        <ul class="info-list">
+            <li><span class="info-label">ID：</span>{{ user_info.id }}</li>
+            <li><span class="info-label">用户名：</span>{{ user_info.username }}</li>
+            <li><span class="info-label">邮箱：</span>{{ user_info.email }}</li>
+            <li><span class="info-label">手机：</span>{{ user_info.phone }}</li>
+            <li><span class="info-label">余额：</span><strong>{{ user_info.balance }}</strong></li>
+        </ul>
+    </div>
+    <div class="recharge-section">
+        <h3>账户充值 ✅ 仅允许给自己充值，金额必须为正整数</h3>
+        <form method="post" action="{{ url_for('recharge') }}" class="form">
+            <div class="form-group">
+                <label for="amount">充值金额</label>
+                <input type="number" id="amount" name="amount" class="form-input"
+                       placeholder="请输入充值金额" min="1" required>
+            </div>
+            <button type="submit" class="btn btn-primary">充值</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+<div class="card"><a href="{{ url_for('index') }}" class="btn btn-secondary">返回首页</a></div>
+{% endblock %}

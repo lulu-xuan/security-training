@@ -1,0 +1,75 @@
+{% extends "upload_labs_base.html" %}
+{% block content %}
+
+{% if username %}
+<div class="card">
+    <h2 class="card-title">欢迎来到 文件上传漏洞分析平台</h2>
+    <p class="card-text">选择下方场景，体验不同的文件上传漏洞与绕过技术。</p>
+</div>
+
+<div class="card">
+    <h2 class="card-title">📋 漏洞场景列表</h2>
+    <div class="pass-grid">
+        <a href="{{ url_for('upload_pass_01') }}" class="pass-card">
+            <div class="pass-num">Pass-01</div>
+            <div class="pass-name">前端JS校验</div>
+            <div class="pass-diff">⭐ 简单</div>
+        </a>
+        <a href="{{ url_for('upload_pass_02') }}" class="pass-card">
+            <div class="pass-num">Pass-02</div>
+            <div class="pass-name">MIME类型校验</div>
+            <div class="pass-diff">⭐ 简单</div>
+        </a>
+        <a href="{{ url_for('upload_pass_03') }}" class="pass-card">
+            <div class="pass-num">Pass-03</div>
+            <div class="pass-name">黑名单后缀</div>
+            <div class="pass-diff">⭐ 简单</div>
+        </a>
+        <a href="{{ url_for('upload_pass_06') }}" class="pass-card">
+            <div class="pass-num">Pass-06</div>
+            <div class="pass-name">大小写绕过</div>
+            <div class="pass-diff">⭐ 简单</div>
+        </a>
+        <a href="{{ url_for('upload_pass_07') }}" class="pass-card">
+            <div class="pass-num">Pass-07</div>
+            <div class="pass-name">空格绕过</div>
+            <div class="pass-diff">⭐⭐ 中等</div>
+        </a>
+        <a href="{{ url_for('upload_pass_08') }}" class="pass-card">
+            <div class="pass-num">Pass-08</div>
+            <div class="pass-name">点号绕过</div>
+            <div class="pass-diff">⭐⭐ 中等</div>
+        </a>
+        <a href="{{ url_for('upload_pass_11') }}" class="pass-card">
+            <div class="pass-num">Pass-11</div>
+            <div class="pass-name">双写绕过</div>
+            <div class="pass-diff">⭐⭐ 中等</div>
+        </a>
+        <a href="{{ url_for('upload_pass_12') }}" class="pass-card">
+            <div class="pass-num">Pass-12</div>
+            <div class="pass-name">%00截断</div>
+            <div class="pass-diff">⭐⭐⭐ 困难</div>
+        </a>
+        <a href="{{ url_for('upload_pass_14') }}" class="pass-card">
+            <div class="pass-num">Pass-14</div>
+            <div class="pass-name">文件头检查</div>
+            <div class="pass-diff">⭐⭐⭐ 困难</div>
+        </a>
+        <a href="{{ url_for('upload_pass_18') }}" class="pass-card">
+            <div class="pass-num">Pass-18</div>
+            <div class="pass-name">条件竞争</div>
+            <div class="pass-diff">⭐⭐⭐⭐ 专家</div>
+        </a>
+    </div>
+</div>
+
+{% else %}
+<div class="card">
+    <h2 class="card-title">文件上传漏洞分析平台</h2>
+    <p class="card-text">本平台包含 10 类文件上传漏洞场景，涵盖前端校验、MIME校验、黑名单、大小写、空格、点号、双写、%00截断、文件头检查、条件竞争等常见漏洞类型。</p>
+    <p class="card-text">请先登录或注册后开始测试。</p>
+    <a href="{{ url_for('login') }}" class="btn btn-primary">前往登录</a>
+</div>
+{% endif %}
+
+{% endblock %}
