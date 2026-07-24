@@ -230,6 +230,85 @@ def dynamic_page():
                            file_source=source)
 
 
+# ============================================================
+
+# ============================================================
+# ⚠️ 漏洞路由: 个人中心 (IDOR — 无权限校验)
+# ============================================================
+@app.route("/profile")
+def profile():
+    """个人中心 — 存在IDOR漏洞：不验证user_id归属"""
+    username = session.get("username")
+    user_id = request.args.get("user_id", type=int)
+    user_info = None
+    error = None
+
+    if user_id:
+        db = get_db()
+        query = f"SELECT id, username, email, phone, balance FROM users WHERE id={user_id}"
+        try:
+            user_info = db.execute(query).fetchone()
+            if user_info:
+                user_info = dict(user_info)
+            else:
+                error = "用户不存在"
+        except:
+            error = "查询失败"
+
+    return render_template("profile.html", username=username,
+                           user_info=user_info, error=error, user_id=user_id)
+
+
+# ============================================================
+# ⚠️ 漏洞路由: 充值 (负数欺诈 + 越权)
+# ============================================================
+@app.route("/recharge", methods=["POST"])
+def recharge():
+    """充值 — 存在漏洞：amount可为负数、user_id可篡改"""
+    user_id = request.form.get("user_id", type=int)
+    amount = request.form.get("amount", type=int, default=0)
+
+    if user_id and amount:
+        db = get_db()
+        query = f"UPDATE users SET balance = balance + ({amount}) WHERE id={user_id}"
+        try:
+            db.execute(query)
+            db.commit()
+        except:
+            pass
+
+    return redirect(url_for("profile", user_id=user_id))
+
+
+
+# ⚠️ 漏洞路由: 修改密码 (无CSRF/无原密码/无权限校验)
+# ============================================================
+@app.route("/change-password", methods=["POST"])
+def change_password():
+    """修改密码 — 存在漏洞：无CSRF、无原密码校验、未验证session归属"""
+    # ⚠️ 漏洞: 从表单获取 username，不从 session 获取
+    # ⚠️ 漏洞: 不验证原密码
+    # ⚠️ 漏洞: 不需要 CSRF Token
+    # ⚠️ 漏洞: 任何已登录用户可修改任意人的密码
+    username = request.form.get("username", "")
+    new_password = request.form.get("new_password", "")
+    confirm = request.form.get("confirm_password", "")
+
+    if new_password and new_password == confirm and username:
+        db = get_db()
+        # ⚠️ 漏洞: 字符串拼接 SQL
+        query = f"UPDATE users SET password='{new_password}' WHERE username='{username}'"
+        try:
+            db.execute(query)
+            db.commit()
+        except:
+            pass
+
+        # 获取 user_id 用于重定向
+    uid = request.form.get("user_id", type=int)
+    return redirect(url_for("profile", user_id=uid))
+
+
 # ========== 登出 ==========
 @app.route("/logout")
 def logout():
