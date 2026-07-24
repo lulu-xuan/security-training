@@ -309,6 +309,60 @@ def change_password():
     return redirect(url_for("profile", user_id=uid))
 
 
+
+
+# ============================================================
+# 🎯 场景 CSRF-02: 令牌验证依赖于请求方法
+#   POST 需 CSRF Token，但 GET 不需要 → 可通过 GET 绕过
+# ============================================================
+@app.route("/csrf-transfer-post", methods=["POST"])
+def csrf_transfer_post():
+    """POST转账 — CSRF Token验证，但可通过其他方式绕过"""
+    # ⚠️ 漏洞: 仅 POST 检查 token，GET 不检查
+    token = request.form.get("csrf_token", "")
+    expected = session.get("csrf_token", "fixed-token")
+    if token != expected:
+        return "<p>CSRF Token 无效</p><a href='/csrf-demo'>返回</a>"
+    
+    to_user = request.form.get("to_user", "")
+    amount = request.form.get("amount", type=int, default=0)
+    return f"<p>转账成功！金额: {amount}</p><a href='/csrf-demo'>返回</a>"
+
+
+@app.route("/csrf-transfer-get", methods=["GET"])
+def csrf_transfer_get():
+    """GET转账 — ⚠️ 不检查 CSRF Token"""
+    to_user = request.args.get("to_user", "")
+    amount = request.args.get("amount", type=int, default=0)
+    return f"<p>GET转账成功！金额: {amount} → {to_user}</p><a href='/csrf-demo'>返回</a>"
+
+
+# ============================================================
+# 🎯 场景 CSRF-03: 令牌验证依赖于令牌的存在
+#   表单中有 csrf_token 字段就通过，不校验值
+# ============================================================
+@app.route("/csrf-update-profile", methods=["POST"])
+def csrf_update_profile():
+    """更新资料 — ⚠️ 只检查 csrf_token 字段是否存在，不验证值"""
+    email = request.form.get("email", "")
+    
+    # ⚠️ 漏洞: 检查字段是否包含 csrf_token（存在即通过，不校验值）
+    # ⚠️ 漏洞: 攻击者可以传任意 csrf_token=whatever
+    if "csrf_token" in request.form:
+        return f"<p>资料更新成功！邮箱: {email}</p><a href='/csrf-demo'>返回</a>"
+    else:
+        return "<p>缺少 CSRF Token</p><a href='/csrf-demo'>返回</a>"
+
+
+# ============================================================
+# 🎯 CSRF 漏洞演示页面
+# ============================================================
+@app.route("/csrf-demo")
+def csrf_demo():
+    """CSRF 漏洞演示页面"""
+    return render_template("csrf_demo.html",
+                           username=session.get("username"))
+
 # ========== 登出 ==========
 @app.route("/logout")
 def logout():
