@@ -1,0 +1,16 @@
+# Database
+*.db
+*.sqlite3
+
+# Uploads
+static/uploads/*.php
+static/uploads/*.html
+static/uploads/*.py
+static/uploads/*.exe
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Environment
+.env

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+    <h2 class="card-title">个人中心</h2>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    {% if user_info %}
+    <div class="user-info">
+        <h3>用户资料</h3>
+        <ul class="info-list">
+            <li><span class="info-label">ID：</span>{{ user_info.id }}</li>
+            <li><span class="info-label">用户名：</span>{{ user_info.username }}</li>
+            <li><span class="info-label">邮箱：</span>{{ user_info.email }}</li>
+            <li><span class="info-label">手机：</span>{{ user_info.phone }}</li>
+            <li><span class="info-label">余额：</span><strong>{{ user_info.balance }}</strong></li>
+        </ul>
+    </div>
+
+    <div class="recharge-section">
+        <h3>账户充值</h3>
+        <!-- ⚠️ 漏洞: 使用隐藏字段传递 user_id，可被篡改 -->
+        <form method="post" action="{{ url_for('recharge') }}" class="form">
+            <input type="hidden" name="user_id" value="{{ user_info.id }}">
+
+            <div class="form-group">
+                <label for="amount">充值金额</label>
+                <!-- ⚠️ 漏洞: amount 不校验正负 -->
+                <input type="number" id="amount" name="amount" class="form-input"
+                       placeholder="请输入充值金额" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary">充值</button>
+        </form>
+    </div>
+
+    <!-- ⚠️ 漏洞: 修改密码 — 无CSRF、无原密码校验 -->
+    <div class="recharge-section">
+        <h3>修改密码</h3>
+        <!-- ⚠️ 漏洞: 使用隐藏字段传递 username，可被篡改 -->
+        <!-- ⚠️ 漏洞: 无需 CSRF Token -->
+        <!-- ⚠️ 漏洞: 无需验证原密码 -->
+        <form method="post" action="{{ url_for('change_password') }}" class="form">
+            <input type="hidden" name="username" value="{{ user_info.username }}">
+            <input type="hidden" name="user_id" value="{{ user_info.id }}">
+
+            <div class="form-group">
+                <label for="new_password">新密码</label>
+                <input type="password" id="new_password" name="new_password" class="form-input"
+                       placeholder="请输入新密码" required>
+            </div>
+
+            <div class="form-group">
+                <label for="confirm_password">确认新密码</label>
+                <input type="password" id="confirm_password" name="confirm_password" class="form-input"
+                       placeholder="请再次输入新密码" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary">修改密码</button>
+        </form>
+    </div>
+    {% else %}
+    <p class="card-text">请通过 URL 参数指定要查看的用户。</p>
+    <p class="card-text">示例：<code>/profile?user_id=1</code>（查看管理员资料）</p>
+    <p class="card-text">示例：<code>/profile?user_id=2</code>（查看其他用户资料）</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">返回首页</a>
+</div>
+
+{% endblock %}

