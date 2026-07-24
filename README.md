@@ -12,7 +12,8 @@
 | Day3 | SQL注入漏洞分析与修复 | [`day3-app/`](./day3-app/) · [`day3-report/`](./day3-report/) | ✅ 已完成 |
 | Day4 | 文件上传漏洞分析与修复 | [`day4-app/`](./day4-app/) · [`day4-report/`](./day4-report/) | ✅ 已完成 |
 | Day5 | 业务逻辑漏洞（越权与充值欺诈） | [`day5-app/`](./day5-app/) · [`day5-report/`](./day5-report/) | ✅ 已完成 |
-| Day6 | 路径遍历 + 动态页面加载漏洞 | [`day6-app/`](./day6-app/) · [`day6-report/`](./day6-report/) | ✅ 已完成 |
+| Day6 | 文件包含漏洞（5种攻击场景） | [`day6-app/`](./day6-app/) · [`day6-report/`](./day6-report/) | ✅ 已完成 |
+| Day7 | CSRF跨站请求伪造漏洞（3种场景） | [`day6-app/`](./day6-app/) · [`day6-report/`](./day6-report/) | ✅ 已完成 |
 
 ---
 
@@ -58,6 +59,16 @@
 - 报告: [`day6-report/path_traversal_report.md`](./day6-report/path_traversal_report.md)
 ---
 
+## Day7 - CSRF跨站请求伪造漏洞
+
+**主题**: 完全无防御CSRF + GET请求绕过Token + Token存在性绕过 → 4项安全加固
+
+- 漏洞版: [`day6-app/app.py`](./day6-app/app.py)
+- 修复版: [`day6-app/app_fixed.py`](./day6-app/app_fixed.py)
+- 报告: [`day6-report/csrf_vulnerability_report.md`](./day6-report/csrf_vulnerability_report.md)
+
+---
+
 ## 快速启动
 
 ```bash
@@ -77,23 +88,18 @@ cd day4-app && rm -rf static/uploads && python3 app_fixed.py
 
 # Day5 - 漏洞版 / 修复版
 cd day5-app && rm -f data/users.db && python3 app.py
-# Day6 - 漏洞版（5种文件包含攻击场景）
-cd day6-app && rm -rf data/ logs/ && python3 app.py
-cd day6-app && rm -rf data/ logs/ && python3 app_fixed.py
 cd day5-app && rm -f data/users.db && python3 app_fixed.py
-# Day6 - 漏洞版（5种文件包含攻击场景）
+
+# Day6 - 漏洞版（5种文件包含攻击场景）/ 修复版
 cd day6-app && rm -rf data/ logs/ && python3 app.py
 cd day6-app && rm -rf data/ logs/ && python3 app_fixed.py
-# Day6 - 漏洞版（路径遍历演示）
-cd day6-app && rm -f data/users.db && python3 app.py
-
 ```
 ## 预置账号
 
-| 用户名 | 密码 | Day2 | Day3 | Day4 | Day5 | Day6 |
-|--------|------|:----:|:----:|:----:|:----:|:----:|
-| admin | admin123 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| alice | alice2025 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 用户名 | 密码 | Day2 | Day3 | Day4 | Day5 | Day6 | Day7 |
+|--------|------|:----:|:----:|:----:|:----:|:----:|:----:|
+| admin | admin123 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| alice | alice2025 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
